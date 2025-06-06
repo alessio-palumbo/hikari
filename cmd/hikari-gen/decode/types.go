@@ -3,6 +3,7 @@ package decode
 type ProtocolSpec struct {
 	Enums   []Enum       `yaml:"enums"`
 	Fields  []FieldGroup `yaml:"fields"`
+	Unions  []Union      `yaml:"unions"`
 	Packets []Packet     `yaml:"packets"`
 }
 
@@ -23,10 +24,10 @@ type FieldGroup struct {
 	Fields    []Field `yaml:"fields"`
 }
 
-type Field struct {
-	Name      string `yaml:"name"`
-	Type      string `yaml:"type"`
-	SizeBytes int    `yaml:"size_bytes"`
+type Union struct {
+	Name      string  `yaml:"-"`
+	SizeBytes int     `yaml:"size_bytes"`
+	Fields    []Field `yaml:"fields"`
 }
 
 type Packet struct {
@@ -35,6 +36,12 @@ type Packet struct {
 	PktType   int     `yaml:"pkt_type"`
 	SizeBytes int     `yaml:"size_bytes"`
 	Fields    []Field `yaml:"fields"`
+}
+
+type Field struct {
+	Name      string `yaml:"name"`
+	Type      string `yaml:"type"`
+	SizeBytes int    `yaml:"size_bytes"`
 }
 
 type named interface {
@@ -46,6 +53,10 @@ func (p *Enum) SetName(name string) {
 }
 
 func (p *FieldGroup) SetName(name string) {
+	p.Name = name
+}
+
+func (p *Union) SetName(name string) {
 	p.Name = name
 }
 

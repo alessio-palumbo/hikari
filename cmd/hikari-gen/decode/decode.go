@@ -2,9 +2,12 @@ package decode
 
 import (
 	"fmt"
+	"regexp"
 
 	"gopkg.in/yaml.v3"
 )
+
+var embedRegexp = regexp.MustCompile(`^(?:\[(\d+)\])?<(.+)>$`)
 
 func DecodeProtocol(yamlBytes []byte) (*ProtocolSpec, error) {
 	var rootNode yaml.Node
@@ -18,7 +21,7 @@ func DecodeProtocol(yamlBytes []byte) (*ProtocolSpec, error) {
 	}
 	top := rootNode.Content[0]
 
-	var enumsNode, fieldsNode, packetsNode *yaml.Node
+	var enumsNode, fieldsNode, unionsNode, packetsNode *yaml.Node
 	for i := 0; i < len(top.Content); i += 2 {
 		key := top.Content[i].Value
 		val := top.Content[i+1]
@@ -27,6 +30,8 @@ func DecodeProtocol(yamlBytes []byte) (*ProtocolSpec, error) {
 			enumsNode = val
 		case "fields":
 			fieldsNode = val
+		case "unions":
+			unionsNode = val
 		case "packets":
 			packetsNode = val
 		}
@@ -42,19 +47,71 @@ func DecodeProtocol(yamlBytes []byte) (*ProtocolSpec, error) {
 		return nil, err
 	}
 
+	unions, err := decodeNamedMap[*Union](unionsNode)
+	if err != nil {
+		return nil, err
+	}
+
 	packets, err := decodePacketGroups(packetsNode)
 	if err != nil {
 		return nil, err
 	}
 
+	enumMap := make(map[string]*Enum)
+	for _, e := range enums {
+		enumMap[e.Name] = e
+	}
+	fgMap := make(map[string]*FieldGroup)
+	for _, fg := range fieldGroups {
+		fgMap[fg.Name] = fg
+	}
+	unionMap := make(map[string]*Union)
+	for _, u := range unions {
+		unionMap[u.Name] = u
+	}
+	pktMap := make(map[string]*Packet)
+	for _, p := range packets {
+		pktMap[p.Name] = p
+	}
+
+	// Resolve embedded types in field groups and packets.
+	for _, fg := range fieldGroups {
+		resolved, err := resolveEmbeds("fields", fg.Fields, fgMap, unionMap, pktMap, enumMap)
+		if err != nil {
+			return nil, err
+		}
+		fg.Fields = resolved
+	}
+
+	for _, u := range unions {
+		resolved, err := resolveEmbeds("fields", u.Fields, fgMap, unionMap, pktMap, enumMap)
+		if err != nil {
+			return nil, err
+		}
+		u.Fields = resolved
+	}
+
+	for _, pkt := range packets {
+		resolved, err := resolveEmbeds("packets", pkt.Fields, fgMap, unionMap, pktMap, enumMap)
+		if err != nil {
+			return nil, err
+		}
+		pkt.Fields = resolved
+	}
+
 	return &ProtocolSpec{
 		Enums:   derefSlice(enums),
 		Fields:  derefSlice(fieldGroups),
-		Packets: packets,
+		Unions:  derefSlice(unions),
+		Packets: derefSlice(packets),
 	}, nil
 }
 
+// decodeNamedMap decodes a YAML mapping node into a slice of named items.
 func decodeNamedMap[T named](node *yaml.Node) ([]T, error) {
+	if node == nil {
+		return nil, fmt.Errorf("node is nil")
+	}
 	if node.Kind != yaml.MappingNode {
 		return nil, fmt.Errorf("expected mapping node %v", node.Kind)
 	}
@@ -75,12 +132,13 @@ func decodeNamedMap[T named](node *yaml.Node) ([]T, error) {
 	return items, nil
 }
 
-func decodePacketGroups(node *yaml.Node) ([]Packet, error) {
+// decodePacketGroups decodes a YAML mapping node into a slice of Packets, each with its namespace.
+func decodePacketGroups(node *yaml.Node) ([]*Packet, error) {
 	if node.Kind != yaml.MappingNode {
 		return nil, fmt.Errorf("expected mapping node for packet groups")
 	}
 
-	var packets []Packet
+	var packets []*Packet
 
 	for i := 0; i < len(node.Content); i += 2 {
 		nsNode := node.Content[i]
@@ -94,7 +152,7 @@ func decodePacketGroups(node *yaml.Node) ([]Packet, error) {
 
 		for _, pkt := range namedPkts {
 			pkt.Namespace = namespace
-			packets = append(packets, *pkt)
+			packets = append(packets, pkt)
 		}
 	}
 
@@ -107,4 +165,48 @@ func derefSlice[T any](ptrs []*T) []T {
 		out[i] = *v
 	}
 	return out
+}
+
+func resolveEmbeds(context string, fields []Field, fgMap map[string]*FieldGroup, unionMap map[string]*Union, pktMap map[string]*Packet, enumMap map[string]*Enum) ([]Field, error) {
+	var resolved []Field
+
+	for _, f := range fields {
+		typ, err := resolveFieldType(context, f.Type, fgMap, unionMap, pktMap, enumMap)
+		if err != nil {
+			return nil, err
+		}
+		f.Type = typ
+		resolved = append(resolved, f)
+	}
+
+	return resolved, nil
+}
+
+func resolveFieldType(context string, typeStr string, fgMap map[string]*FieldGroup, unionMap map[string]*Union, pktMap map[string]*Packet, enumMap map[string]*Enum) (string, error) {
+	arrayPrefix, embed, ok := parseEmbedFields(typeStr)
+	if !ok {
+		return typeStr, nil
+	}
+
+	var ref string
+
+	switch {
+	case fgMap[embed] != nil, unionMap[embed] != nil, pktMap[embed] != nil:
+	case enumMap[embed] != nil:
+		ref = "enums."
+	default:
+		return "", fmt.Errorf("unknown embedded reference <%s>", embed)
+	}
+
+	return fmt.Sprintf("%s%s%s", arrayPrefix, ref, embed), nil
+}
+
+func parseEmbedFields(s string) (arrayPrefix string, embeddedType string, ok bool) {
+	if m := embedRegexp.FindStringSubmatch(s); m != nil {
+		if m[1] != "" {
+			arrayPrefix = "[" + m[1] + "]"
+		}
+		return arrayPrefix, m[2], true
+	}
+	return "", "", false
 }
