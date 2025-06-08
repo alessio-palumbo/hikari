@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"text/template"
 
@@ -27,8 +28,11 @@ func Generate(spec *decode.ProtocolSpec, outputRoot string) error {
 	if err := generateUnions(filepath.Join(outputRoot, "packets", "unions.go"), spec.Unions); err != nil {
 		return fmt.Errorf("generating unions: %w", err)
 	}
+	if err := generatePayloadTypes(filepath.Join(outputRoot, "packets", "payloads.go"), spec.Packets); err != nil {
+		return fmt.Errorf("generating payloads: %w", err)
+	}
 	if err := generatePackets(filepath.Join(outputRoot, "packets"), spec.Packets); err != nil {
-		return fmt.Errorf("generating unions: %w", err)
+		return fmt.Errorf("generating packets: %w", err)
 	}
 
 	return nil
@@ -74,6 +78,13 @@ func generateUnions(outputPath string, unions []decode.Union) error {
 	return generateFromTemplate("templates/unions.tmpl", outputPath, unions)
 }
 
+func generatePayloadTypes(outputPath string, packets []decode.Packet) error {
+	sorted := slices.SortedFunc(slices.Values(packets), func(a, b decode.Packet) int {
+		return a.PktType - b.PktType
+	})
+	return generateFromTemplate("templates/payloads.tmpl", outputPath, sorted)
+}
+
 func generatePackets(outputPath string, packets []decode.Packet) error {
 	var namespaces []string
 	nsMap := make(map[string][]decode.Packet)
@@ -84,6 +95,10 @@ func generatePackets(outputPath string, packets []decode.Packet) error {
 		}
 		fixReservedFieldNames(f.Fields)
 		nsMap[f.Namespace] = append(nsMap[f.Namespace], f)
+	}
+
+	if err := generateFromTemplate("templates/helpers.tmpl", filepath.Join(outputPath, "helpers.go"), nil); err != nil {
+		return err
 	}
 
 	for _, ns := range namespaces {
