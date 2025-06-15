@@ -19,7 +19,6 @@ type Client struct {
 	conn     *net.UDPConn
 	source   uint32
 	deadline time.Duration
-	seq      uint8
 }
 
 type Config struct {
@@ -54,7 +53,6 @@ func NewClient(cfg *Config) (*Client, error) {
 		conn:     conn,
 		source:   source,
 		deadline: deadline,
-		seq:      0,
 	}, nil
 }
 
@@ -65,7 +63,6 @@ func (c *Client) Close() error {
 // Send sends a message to the specified destination address.
 func (c *Client) Send(dst *net.UDPAddr, msg *protocol.Message) error {
 	msg.SetSource(c.source)
-	msg.SetSequence(c.nextSeq())
 
 	data, err := msg.MarshalBinary()
 	if err != nil {
@@ -88,9 +85,11 @@ func (c *Client) SendBroadcast(msg *protocol.Message) error {
 
 // Receive reads UDP messages until the deadline is hit or recvOne is true and a valid message has been received.
 func (c *Client) Receive(timeout time.Duration, recvOne bool, handler HandlerFunc) error {
-	c.conn.SetReadDeadline(time.Now().Add(timeout))
-	// Reset deadline after reading
-	defer c.conn.SetReadDeadline(time.Time{})
+	if timeout > 0 {
+		c.conn.SetReadDeadline(time.Now().Add(timeout))
+		// Reset deadline after reading
+		defer c.conn.SetReadDeadline(time.Time{})
+	}
 
 	buf := make([]byte, recvBufferSize)
 
@@ -116,12 +115,4 @@ func (c *Client) Receive(timeout time.Duration, recvOne bool, handler HandlerFun
 	}
 
 	return nil
-}
-
-// nextSeq increments the sequence number and returns the new value.
-// It wraps around after reaching 255.
-// nextSeq is not thread-safe and should be called with care in concurrent contexts.
-func (c *Client) nextSeq() uint8 {
-	c.seq++
-	return c.seq
 }

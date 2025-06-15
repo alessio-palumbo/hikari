@@ -3,9 +3,14 @@ package client
 import (
 	"fmt"
 	"net"
+	"time"
 
 	"github.com/alessio-palumbo/hikari/gen/protocol/packets"
 	"github.com/alessio-palumbo/hikari/internal/protocol"
+)
+
+const (
+	defaultSessionStatePeriod = 10 * time.Second
 )
 
 // sender is an interface that defines the Send method for sending messages.
@@ -23,13 +28,18 @@ type DeviceSession struct {
 }
 
 // NewDeviceSession creates a new DeviceSession for the given device.
-func NewDeviceSession(device *Device, sender sender) (*DeviceSession, error) {
-	return &DeviceSession{
+func NewDeviceSession(addr *net.UDPAddr, target [8]byte, sender sender) (*DeviceSession, error) {
+	ds := &DeviceSession{
 		sender:  sender,
-		device:  device,
+		device:  NewDevice(addr, target),
 		inbound: make(chan *protocol.Message, defaultRecvBufferSize),
 		done:    make(chan struct{}),
-	}, nil
+	}
+
+	go ds.recvloop()
+	go ds.run()
+
+	return ds, nil
 }
 
 // Close closes the DeviceSession, stopping the recv loop and cleaning up resources.
@@ -42,6 +52,7 @@ func (s *DeviceSession) Close() error {
 func (s *DeviceSession) Send(msgs ...*protocol.Message) {
 	for _, msg := range msgs {
 		msg.SetTarget(s.device.Serial)
+		msg.SetSequence(s.nextSeq())
 		if err := s.sender.Send(s.device.Address, msg); err != nil {
 			fmt.Printf("Failed to send message to device %s: %v\n", s.device.Serial, err)
 		}
@@ -56,9 +67,19 @@ func (s *DeviceSession) nextSeq() uint8 {
 	return s.seq
 }
 
-func (s *DeviceSession) run() error {
-	s.Send(protocol.NewMessage(&packets.LightGet{}), protocol.NewMessage(&packets.DeviceGetVersion{}))
-	return nil
+func (s *DeviceSession) run() {
+	s.Send(DeviceStateMessages()...)
+	ticker := time.NewTicker(defaultSessionStatePeriod)
+
+	for {
+		select {
+		case <-s.done:
+			return
+		case <-ticker.C:
+			s.Send(protocol.NewMessage(&packets.DeviceGetVersion{}), protocol.NewMessage(&packets.DeviceGetLabel{}), protocol.NewMessage(&packets.LightGet{}))
+			ticker.Reset(defaultSessionStatePeriod)
+		}
+	}
 }
 
 // recvloop listens for incoming messages from the device and processes them.
@@ -70,18 +91,19 @@ func (s *DeviceSession) recvloop() {
 				continue
 			}
 
-			switch payload := msg.Payload.(type) {
+			switch p := msg.Payload.(type) {
+			case *packets.DeviceStateLabel:
+				s.device.Label = string(p.Label[:])
 			case *packets.LightState:
-				if s.device.State == nil {
-					s.device.State = &State{}
-				}
-				s.device.State.Label = string(payload.Label[:])
-				s.device.State.Color = payload.Color
-				s.device.State.Power = payload.Power
+				s.device.Color = NewColor(p.Color)
+				s.device.PoweredOn = p.Power > 0
 			case *packets.DeviceStateVersion:
-				s.device.Product = payload.Product
+				s.device.ProductID = p.Product
+			case *packets.DeviceStateHostFirmware:
+				s.device.FirmwareVersion = fmt.Sprintf("%d.%d", p.VersionMajor, p.VersionMinor)
+			case *packets.DeviceStateService, *packets.DeviceStateUnhandled: // Ignore these messages
 			default:
-				fmt.Println("Unhandled message type:", payload.PayloadType())
+				fmt.Println("Unhandled message type:", p.PayloadType())
 			}
 		case <-s.done:
 			fmt.Println("Exiting recv loop for device:", s.device.Serial)

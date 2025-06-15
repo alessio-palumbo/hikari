@@ -3,6 +3,7 @@ package client
 import (
 	"fmt"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/alessio-palumbo/hikari/gen/protocol/enums"
@@ -10,12 +11,17 @@ import (
 	"github.com/alessio-palumbo/hikari/internal/protocol"
 )
 
-const defaultRecvBufferSize = 10
+const (
+	defaultRecvBufferSize  = 10
+	defaultDiscoveryPeriod = 500 * time.Millisecond
+)
 
 type DeviceManager struct {
 	client   *Client
-	sessions map[string]*DeviceSession
 	recvDone chan struct{}
+
+	mu       sync.RWMutex
+	sessions map[string]*DeviceSession
 }
 
 // NewDeviceManager creates a new DeviceManager that starts listening for devices.
@@ -27,14 +33,17 @@ func NewDeviceManager() (*DeviceManager, error) {
 
 	dm := &DeviceManager{
 		client:   client,
-		sessions: make(map[string]*DeviceSession),
 		recvDone: make(chan struct{}),
+		sessions: make(map[string]*DeviceSession),
 	}
 	go dm.recvloop()
 
+	// Perform an intial discovery and exit early, if needed.
 	if err := dm.Discover(); err != nil {
 		return nil, fmt.Errorf("failed to discover devices: %w", err)
 	}
+	go dm.periodicDiscovery(defaultDiscoveryPeriod)
+
 	return dm, nil
 }
 
@@ -51,6 +60,7 @@ func (d *DeviceManager) Close() error {
 		}
 	}
 	clear(d.sessions)
+	fmt.Println("Device manager closed")
 	return nil
 }
 
@@ -59,24 +69,48 @@ func (d *DeviceManager) Discover() error {
 	return d.client.SendBroadcast(msg)
 }
 
-func (d *DeviceManager) AddSession(addr *net.UDPAddr, target [8]byte) error {
-	device := NewDevice(addr, target)
-	session, err := NewDeviceSession(device, d.client)
+// periodicDiscovery periodically looks for new devices on the network.
+func (d *DeviceManager) periodicDiscovery(period time.Duration) {
+	ticker := time.NewTicker(period)
+
+	for {
+		select {
+		case <-d.recvDone:
+			return
+		case <-ticker.C:
+			_ = d.Discover()
+			ticker.Reset(period)
+		}
+	}
+}
+
+func (d *DeviceManager) addSession(addr *net.UDPAddr, target [8]byte) error {
+	session, err := NewDeviceSession(addr, target, d.client)
 	if err != nil {
 		return fmt.Errorf("failed to create device session: %w", err)
 	}
-	d.sessions[device.Address.IP.String()] = session
 
-	go session.recvloop()
-	go session.run()
+	d.mu.Lock()
+	d.sessions[addr.IP.String()] = session
+	d.mu.Unlock()
 
 	return nil
 }
 
-func (d *DeviceManager) PrintSessions() {
+func (d *DeviceManager) Send(Serial, string) (string, error) {
+	return "Hello", nil
+}
+
+func (d *DeviceManager) GetDevices() []Device {
+	var devices []Device
+	d.mu.RLock()
 	for _, session := range d.sessions {
-		fmt.Println(session.device.String())
+		devices = append(devices, *session.device)
 	}
+	d.mu.RUnlock()
+
+	SortDevices(devices)
+	return devices
 }
 
 // recv listens for incoming messages from devices and dispatches them to the appropriate session.
@@ -90,7 +124,9 @@ func (d *DeviceManager) recvloop() {
 			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 				break
 			}
-			panic(fmt.Sprintf("failed to read from UDP: %v", err))
+			fmt.Println("failed to read from UDP, terminating session:", err)
+			d.Close()
+			return
 		}
 
 		var msg protocol.Message
@@ -99,15 +135,22 @@ func (d *DeviceManager) recvloop() {
 			continue
 		}
 
-		if session, ok := d.sessions[addr.IP.String()]; ok {
+		d.mu.RLock()
+		session, hasSession := d.sessions[addr.IP.String()]
+		d.mu.RUnlock()
+
+		if state, ok := msg.Payload.(*packets.DeviceStateService); ok {
+			if !hasSession && state.Service == enums.DeviceServiceDEVICESERVICEUDP {
+				if err := d.addSession(addr, msg.Header.Target); err != nil {
+					fmt.Println("Failed to spin device worker:", err)
+				}
+			}
+		} else if hasSession {
 			select {
 			case session.inbound <- &msg:
 			default:
 				// If the channel is full, we skip the message to avoid blocking.
-			}
-		} else if state, ok := msg.Payload.(*packets.DeviceStateService); ok && state.Service == enums.DeviceServiceDEVICESERVICEUDP {
-			if err := d.AddSession(addr, msg.Header.Target); err != nil {
-				fmt.Println("Failed to spin device worker:", err)
+				fmt.Println("Channel full, skipping message for", Serial(msg.Header.Target).String(), msg.Payload.PayloadType())
 			}
 		}
 	}
