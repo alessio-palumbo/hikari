@@ -5,9 +5,11 @@ import (
 	"math"
 
 	"github.com/alessio-palumbo/hikari/pkg/client"
+	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/lipgloss"
 )
 
+// deviceItem implements the DefaultDelegate interface.
 type deviceItem struct {
 	device client.Device
 }
@@ -15,20 +17,7 @@ type deviceItem struct {
 func (i deviceItem) FilterValue() string { return i.device.Label }
 
 func (i deviceItem) Title() string {
-	if !i.device.PoweredOn {
-		return fmt.Sprintf("⚫ %s", i.device.Label)
-	} else if i.device.Type == client.DeviceTypeSwitch {
-		return fmt.Sprintf("🔘 %s", i.device.Label)
-	}
-
-	var r, g, b int
-	if i.device.Color.Saturation == 0.0 {
-		r, g, b = KelvinToRGB(int(i.device.Color.Kelvin))
-	} else {
-		r, g, b = HSBToRGB(i.device.Color.Hue, i.device.Color.Saturation, i.device.Color.Brightness)
-	}
-
-	return lipgloss.NewStyle().Bold(true).Render(fmt.Sprintf("%s %s", createColorBlock(r, g, b, "⬤"), i.device.Label))
+	return deviceTitle(i.device)
 }
 
 func (i deviceItem) Description() string {
@@ -51,10 +40,43 @@ func (i deviceItem) Description() string {
 		}
 	}
 
-	return lipgloss.NewStyle().PaddingTop(1).Render(desc)
+	return lipgloss.NewStyle().PaddingTop(1).Border(lipgloss.NormalBorder(), false, false, true, false).Render(desc)
 }
 
-func HSBToRGB(h, s, b float64) (int, int, int) {
+func NewDeviceList(devices []client.Device) list.Model {
+	items := make([]list.Item, len(devices))
+	for i, device := range devices {
+		items[i] = deviceItem{device: device}
+	}
+
+	delegate := list.NewDefaultDelegate()
+	delegate.SetHeight(6)
+	delegate.SetSpacing(1)
+	l := list.New(items, delegate, 0, 0)
+	l.SetShowTitle(false)
+	l.SetShowHelp(false)
+	l.SetStatusBarItemName("device", "devices")
+	return l
+}
+
+func deviceTitle(device client.Device) string {
+	if !device.PoweredOn {
+		return fmt.Sprintf("⚫ %s", device.Label)
+	} else if device.Type == client.DeviceTypeSwitch {
+		return fmt.Sprintf("🔘 %s", device.Label)
+	}
+
+	var r, g, b int
+	if device.Color.Saturation == 0.0 {
+		r, g, b = kelvinToRGB(int(device.Color.Kelvin))
+	} else {
+		r, g, b = hsbToRGB(device.Color.Hue, device.Color.Saturation, device.Color.Brightness)
+	}
+
+	return lipgloss.NewStyle().Bold(true).Render(fmt.Sprintf("%s %s", createColorBlock(r, g, b, "⬤"), device.Label))
+}
+
+func hsbToRGB(h, s, b float64) (int, int, int) {
 	s, b = s/100, b/100
 	if s == 0.0 {
 		return int(b * 255), int(b * 255), int(b * 255)
@@ -85,10 +107,10 @@ func HSBToRGB(h, s, b float64) (int, int, int) {
 	return 0, 0, 0
 }
 
-// KelvinToRGB converts a color temperature in Kelvin to an RGB color.
+// kelvinToRGB converts a color temperature in Kelvin to an RGB color.
 // It uses a standard approximation suitable for many applications,
 // but accuracy is best between 1000K and 40000K.
-func KelvinToRGB(kelvin int) (r, g, b int) {
+func kelvinToRGB(kelvin int) (r, g, b int) {
 	temp := int(math.Round(float64(kelvin) / 100.0))
 
 	// Red
@@ -97,33 +119,18 @@ func KelvinToRGB(kelvin int) (r, g, b int) {
 	} else {
 		r = temp - 60
 		r = int(329.698727446 * math.Pow(float64(r), -0.1332047592))
-		if r < 0 {
-			r = 0
-		}
-		if r > 255 {
-			r = 255
-		}
+		r = min(max(r, 0), 255)
 	}
 
 	// Green
 	if temp <= 66 {
 		g = temp
 		g = int(99.4708025861*math.Log(float64(g)) - 161.1195681661)
-		if g < 0 {
-			g = 0
-		}
-		if g > 255 {
-			g = 255
-		}
+		g = min(max(g, 0), 255)
 	} else {
 		g = temp - 60
 		g = int(288.1221695283 * math.Pow(float64(g), -0.0755148492))
-		if g < 0 {
-			g = 0
-		}
-		if g > 255 {
-			g = 255
-		}
+		g = min(max(g, 0), 255)
 	}
 
 	// Blue
@@ -134,12 +141,7 @@ func KelvinToRGB(kelvin int) (r, g, b int) {
 	} else {
 		b = temp - 10
 		b = int(138.5177312231*math.Log(float64(b)) - 305.0447927307)
-		if b < 0 {
-			b = 0
-		}
-		if b > 255 {
-			b = 255
-		}
+		b = min(max(b, 0), 255)
 	}
 
 	return int(r), int(g), int(b)

@@ -1,80 +1,92 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"time"
 
 	"github.com/alessio-palumbo/hikari/pkg/client"
-	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
-// App states
+var (
+	titleStyle = lipgloss.NewStyle().
+			Background(lipgloss.Color("62")).
+			Foreground(lipgloss.Color("230")).
+			Padding(0, 1)
+		// Foreground(lipgloss.Color("#FFFDF5")).
+		// Background(lipgloss.Color("#25A065")).
+		// Padding(0, 1)
+
+	statusStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#888888"))
+
+	helpStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#626262"))
+
+	selectedStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#FFFDF5")).
+			Background(lipgloss.Color("#F25D94")).
+			Padding(0, 1)
+
+	responseStyle = lipgloss.NewStyle().
+			BorderForeground(lipgloss.Color("#874BFD")).
+			Padding(1)
+)
+
 type state int
 
 const (
 	stateDeviceList state = iota
 	stateDeviceSelected
-	stateMessageInput
-	stateResponse
+	stateParamSelected
+	stateEditingParam
+	stateError
 )
 
 // Bubble Tea messages
 type deviceSelectedMsg client.Device
-type messageResponseMsg struct {
-	response string
-	err      error
-}
 type deviceUpdateMsg []client.Device
 type tickMsg time.Time
 
-// Main model
 type model struct {
-	state          state
-	deviceManager  *client.DeviceManager
-	deviceList     list.Model
-	selectedDevice client.Device
-	messageInput   textinput.Model
-	response       string
-	err            error
-	lastUpdate     time.Time
+	state              state
+	deviceManager      *client.DeviceManager
+	deviceList         list.Model
+	selectedDevice     client.Device
+	commandRegistry    *CommandRegistry
+	commandList        list.Model
+	selectedCommand    *Command
+	paramList          list.Model
+	editInput          textinput.Model
+	selectedParamIndex int
+	errMessage         string
+	lastUpdate         time.Time
 }
 
 func initialModel() model {
-	// Initialize device manager
 	dm, err := client.NewDeviceManager()
 	if err != nil {
 		log.Fatal(err)
 	}
-	time.Sleep(time.Second)
 
-	// Create device list
-	devices := dm.GetDevices()
-	items := make([]list.Item, len(devices))
-	for i, device := range devices {
-		items[i] = deviceItem{device: device}
-	}
-
-	delegate := list.NewDefaultDelegate()
-	delegate.SetHeight(5)
-	deviceList := list.New(items, delegate, 0, 0)
-	deviceList.Title = "LIFX Devices"
-
-	// Create message input
 	ti := textinput.New()
-	ti.Placeholder = "Enter message to send..."
+	ti.Placeholder = "Enter value"
+	ti.Width = 20
+	ti.CharLimit = 5
 	ti.Focus()
-	ti.CharLimit = 256
-	ti.Width = 50
 
 	return model{
-		state:         stateDeviceList,
-		deviceManager: dm,
-		deviceList:    deviceList,
-		messageInput:  ti,
-		lastUpdate:    time.Now(),
+		state:           stateDeviceList,
+		deviceManager:   dm,
+		deviceList:      NewDeviceList(dm.GetDevices()),
+		commandRegistry: NewCommandRegistry(),
+		commandList:     NewCommandList(),
+		lastUpdate:      time.Now(),
+		editInput:       ti,
 	}
 }
 
@@ -96,57 +108,99 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch m.state {
 		case stateDeviceList:
-			switch {
-			case key.Matches(msg, key.NewBinding(key.WithKeys("q", "ctrl+c"))):
-				return m, tea.Quit
-			case key.Matches(msg, key.NewBinding(key.WithKeys("enter"))):
+			switch msg.String() {
+			case "enter":
 				if selectedItem, ok := m.deviceList.SelectedItem().(deviceItem); ok {
 					m.selectedDevice = selectedItem.device
 					m.state = stateDeviceSelected
-					m.messageInput.Focus()
 					return m, nil
 				}
+			case "q", "ctrl+c":
+				return m, tea.Quit
 			}
 			m.deviceList, cmd = m.deviceList.Update(msg)
 
 		case stateDeviceSelected:
-			switch {
-			case key.Matches(msg, key.NewBinding(key.WithKeys("esc", "ctrl+b"))):
-				m.state = stateDeviceList
-				m.messageInput.Blur()
-				return m, nil
-			case key.Matches(msg, key.NewBinding(key.WithKeys("ctrl+c"))):
-				return m, tea.Quit
-			case key.Matches(msg, key.NewBinding(key.WithKeys("enter"))):
-				if m.messageInput.Value() != "" {
-					m.state = stateMessageInput
-					return m, m.sendMessage()
-				}
-			}
-			m.messageInput, cmd = m.messageInput.Update(msg)
+			switch msg.String() {
+			case "enter":
+				if cmd, ok := m.commandList.SelectedItem().(Command); ok {
+					m.selectedCommand = &cmd
 
-		case stateResponse:
-			switch {
-			case key.Matches(msg, key.NewBinding(key.WithKeys("esc", "enter"))):
-				m.state = stateDeviceSelected
-				m.messageInput.SetValue("")
-				m.response = ""
-				m.err = nil
+					// Example: Execute command with some default parameters
+					switch cmd.ID {
+					case "power_on", "power_off":
+						message, _ := m.selectedCommand.Handler()
+						m.deviceManager.Send(m.selectedDevice.Address, message)
+					case "set_color", "set_brightness":
+						m.paramList = NewParamsList(m.selectedCommand.ParamTypes)
+						m.paramList.Title = fmt.Sprintf("Params for %s", m.selectedCommand.Name)
+						m.state = stateParamSelected
+						return m, nil
+					}
+				}
+			case "esc", "ctrl+b":
+				m.state = stateDeviceList
 				return m, nil
-			case key.Matches(msg, key.NewBinding(key.WithKeys("ctrl+c"))):
+			case "q", "ctrl+c":
 				return m, tea.Quit
 			}
+			m.commandList, cmd = m.commandList.Update(msg)
+
+		case stateParamSelected:
+			switch msg.String() {
+			case "enter":
+				m.selectedParamIndex = m.paramList.Index()
+				paramItem := m.paramList.Items()[m.selectedParamIndex].(paramItem)
+
+				m.editInput.SetValue(paramItem.param.Value)
+				m.editInput.Placeholder = paramItem.param.Description
+				m.editInput.CursorEnd()
+				m.editInput.Focus()
+
+				m.state = stateEditingParam
+				return m, nil
+
+			case "a":
+				message, err := m.selectedCommand.Handler(m.selectedCommand.ParamTypes...)
+				if err != nil {
+					m.errMessage = err.Error()
+					return m, nil
+				}
+				m.deviceManager.Send(m.selectedDevice.Address, message)
+				m.state = stateDeviceSelected
+				return m, nil
+
+			case "esc", "ctrl+b":
+				m.state = stateDeviceSelected
+				return m, nil
+			}
+			m.paramList, cmd = m.paramList.Update(msg)
+
+		case stateEditingParam:
+			switch msg.String() {
+			case "enter":
+				val := m.editInput.Value()
+				paramItem := m.paramList.Items()[m.paramList.Index()].(paramItem)
+				if err := paramItem.param.ValidateValue(val); err != nil {
+					m.errMessage = err.Error()
+					return m, nil
+				}
+				m.errMessage = ""
+				paramItem.param.Value = val
+				m.state = stateParamSelected
+				return m, nil
+
+			case "esc", "ctrl+b":
+				m.state = stateParamSelected
+				return m, nil
+			}
+			m.editInput, cmd = m.editInput.Update(msg)
+		case stateError:
 		}
 
 	case deviceSelectedMsg:
 		m.selectedDevice = client.Device(msg)
 		m.state = stateDeviceSelected
-		return m, nil
-
-	case messageResponseMsg:
-		m.response = msg.response
-		m.err = msg.err
-		m.state = stateResponse
 		return m, nil
 
 	case deviceUpdateMsg:
@@ -163,13 +217,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, cmd
-}
-
-func (m model) sendMessage() tea.Cmd {
-	return func() tea.Msg {
-		response, err := m.deviceManager.Send(m.selectedDevice.Serial, m.messageInput.Value())
-		return messageResponseMsg{response: response, err: err}
-	}
 }
 
 // Command to refresh device list
@@ -230,6 +277,50 @@ func (m *model) updateDeviceList(devices []client.Device) {
 	}
 }
 
+func (m model) View() string {
+	switch m.state {
+	case stateDeviceList:
+		return fmt.Sprintf("%s\n%s\n%s\n%s",
+			titleStyle.Render("Hikari"),
+			m.deviceList.View(),
+			statusStyle.Render(fmt.Sprintf("Last updated: %s | Devices: %d",
+				m.lastUpdate.Format("15:04:05"), len(m.deviceList.Items()))),
+			helpStyle.Render("↑/↓: navigate • enter: select device • q: quit"),
+		)
+
+	case stateDeviceSelected:
+		return fmt.Sprintf("%s\n\n%s\n%s\n\n%s",
+			titleStyle.Render("Hikari"),
+			deviceTitle(m.selectedDevice),
+			m.commandList.View(),
+			helpStyle.Render("↑/↓: navigate • enter: send • esc: back • ctrl+c: quit"),
+		)
+
+	case stateParamSelected:
+		return fmt.Sprintf("%s\n\n%s\n%s\n\n%s",
+			titleStyle.Render("Hikari"),
+			selectedStyle.Render(fmt.Sprintf("Command: %s", m.selectedCommand.Name)),
+			m.paramList.View(),
+			helpStyle.Render("↑/↓: navigate • enter: send • esc: back • ctrl+c: quit"),
+		)
+	case stateEditingParam:
+		param := m.selectedCommand.ParamTypes[m.selectedParamIndex]
+		var err string
+		if m.errMessage != "" {
+			err = fmt.Sprintf("\n\n❌ Error: %s", m.errMessage)
+		}
+		return fmt.Sprintf(
+			"\nEditing parameter: %s\n\n%s%s\n\n%s",
+			param.Name,
+			m.editInput.View(),
+			err,
+			helpStyle.Render("↑/↓: navigate • enter: send • esc: back • ctrl+c: quit"),
+		)
+	}
+
+	return ""
+}
+
 func main() {
 	m := initialModel()
 	defer m.deviceManager.Close()
@@ -237,6 +328,6 @@ func main() {
 	p := tea.NewProgram(m, tea.WithAltScreen())
 
 	if _, err := p.Run(); err != nil {
-		log.Fatal("Error running program: %v", err)
+		log.Fatalf("Error running program: %v", err)
 	}
 }
