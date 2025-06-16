@@ -97,8 +97,13 @@ func (d *DeviceManager) addSession(addr *net.UDPAddr, target [8]byte) error {
 	return nil
 }
 
-func (d *DeviceManager) Send(Serial, string) (string, error) {
-	return "Hello", nil
+func (d *DeviceManager) Send(addr *net.UDPAddr, msg *protocol.Message) error {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	if s, ok := d.sessions[addr.IP.String()]; ok {
+		return s.Send(msg)
+	}
+	return nil
 }
 
 func (d *DeviceManager) GetDevices() []Device {

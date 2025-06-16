@@ -2,7 +2,6 @@ package client
 
 import (
 	"fmt"
-	"math"
 	"net"
 	"slices"
 	"strings"
@@ -48,33 +47,6 @@ type Device struct {
 	Group           string
 	Color           Color
 	PoweredOn       bool
-}
-
-func convert16BitValueToPercentage(v uint16, multiplier float64) float64 {
-	return math.Round(float64(v) * multiplier / math.MaxUint16)
-}
-
-type Color struct {
-	Hue        float64
-	Saturation float64
-	Brightness float64
-	Kelvin     uint16
-}
-
-func NewColor(hsbk packets.LightHsbk) Color {
-	return Color{
-		Hue:        convert16BitValueToPercentage(hsbk.Hue, 360),
-		Saturation: convert16BitValueToPercentage(hsbk.Saturation, 100),
-		Brightness: convert16BitValueToPercentage(hsbk.Brightness, 100),
-		Kelvin:     hsbk.Kelvin,
-	}
-}
-
-func (c *Color) String() string {
-	if c.Saturation == 0 {
-		return fmt.Sprintf("Kelvin: %d, Saturation: 0%, Brightness: %f%", c.Kelvin, c.Brightness)
-	}
-	return fmt.Sprintf("Hue: %f, Saturation: %f%, Brightness: %f%", c.Hue, c.Saturation, c.Brightness)
 }
 
 func NewDevice(address *net.UDPAddr, serial [8]byte) *Device {

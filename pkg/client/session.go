@@ -49,14 +49,15 @@ func (s *DeviceSession) Close() error {
 }
 
 // Send sends one or more messages to the device.
-func (s *DeviceSession) Send(msgs ...*protocol.Message) {
+func (s *DeviceSession) Send(msgs ...*protocol.Message) error {
 	for _, msg := range msgs {
 		msg.SetTarget(s.device.Serial)
 		msg.SetSequence(s.nextSeq())
 		if err := s.sender.Send(s.device.Address, msg); err != nil {
-			fmt.Printf("Failed to send message to device %s: %v\n", s.device.Serial, err)
+			return fmt.Errorf("Failed to send message to device %s: %v\n", s.device.Serial, err)
 		}
 	}
+	return nil
 }
 
 // nextSeq increments the sequence number and returns the new value.
