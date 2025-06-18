@@ -1,7 +1,6 @@
 package client
 
 import (
-	"fmt"
 	"math"
 	"time"
 
@@ -34,22 +33,18 @@ func SetColor(h, s, b *float64, k *uint16, d time.Duration) *protocol.Message {
 	}
 	if h != nil {
 		m.Color.Hue = convertExternalToDeviceValue(*h, 360)
-		fmt.Println(m.Color.Hue)
 		m.SetHue = true
 	}
 	if s != nil {
 		m.Color.Saturation = convertExternalToDeviceValue(*s, 100)
-		fmt.Println(m.Color.Saturation)
 		m.SetSaturation = true
 	}
 	if b != nil {
 		m.Color.Brightness = convertExternalToDeviceValue(*b, 100)
-		fmt.Println(m.Color.Brightness)
 		m.SetBrightness = true
 	}
 	if k != nil {
 		m.Color.Kelvin = *k
-		fmt.Println(m.Color.Kelvin)
 		m.SetKelvin = true
 	}
 	return protocol.NewMessage(m)

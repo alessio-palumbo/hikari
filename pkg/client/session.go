@@ -94,7 +94,7 @@ func (s *DeviceSession) recvloop() {
 
 			switch p := msg.Payload.(type) {
 			case *packets.DeviceStateLabel:
-				s.device.Label = string(p.Label[:])
+				s.device.Label = ParseLabel(p.Label)
 			case *packets.LightState:
 				s.device.Color = NewColor(p.Color)
 				s.device.PoweredOn = p.Power > 0

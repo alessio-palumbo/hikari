@@ -14,7 +14,9 @@ type deviceItem struct {
 	device client.Device
 }
 
-func (i deviceItem) FilterValue() string { return i.device.Label }
+func (i deviceItem) FilterValue() string {
+	return i.device.Label
+}
 
 func (i deviceItem) Title() string {
 	return deviceTitle(i.device)
@@ -52,6 +54,7 @@ func NewDeviceList(devices []client.Device) list.Model {
 	delegate := list.NewDefaultDelegate()
 	delegate.SetHeight(6)
 	delegate.SetSpacing(1)
+	delegate.Styles.FilterMatch = lipgloss.NewStyle().Underline(false)
 	l := list.New(items, delegate, 0, 0)
 	l.SetShowTitle(false)
 	l.SetShowHelp(false)

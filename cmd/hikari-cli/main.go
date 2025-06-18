@@ -12,6 +12,10 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+const (
+	defaultDeviceRefreshPeriod = 2 * time.Second
+)
+
 var (
 	titleStyle = lipgloss.NewStyle().
 			Background(lipgloss.Color("62")).
@@ -53,18 +57,18 @@ type deviceUpdateMsg []client.Device
 type tickMsg time.Time
 
 type model struct {
-	state              state
-	deviceManager      *client.DeviceManager
-	deviceList         list.Model
-	selectedDevice     client.Device
-	commandRegistry    *CommandRegistry
-	commandList        list.Model
-	selectedCommand    *Command
-	paramList          list.Model
-	editInput          textinput.Model
-	selectedParamIndex int
-	errMessage         string
-	lastUpdate         time.Time
+	state               state
+	deviceManager       *client.DeviceManager
+	deviceRefreshPeriod time.Duration
+	deviceList          list.Model
+	selectedDevice      client.Device
+	commandList         list.Model
+	selectedCommand     Command
+	paramList           list.Model
+	editInput           textinput.Model
+	selectedParamIndex  int
+	errMessage          string
+	lastUpdate          time.Time
 }
 
 func initialModel() model {
@@ -80,13 +84,13 @@ func initialModel() model {
 	ti.Focus()
 
 	return model{
-		state:           stateDeviceList,
-		deviceManager:   dm,
-		deviceList:      NewDeviceList(dm.GetDevices()),
-		commandRegistry: NewCommandRegistry(),
-		commandList:     NewCommandList(),
-		lastUpdate:      time.Now(),
-		editInput:       ti,
+		state:               stateDeviceList,
+		deviceManager:       dm,
+		deviceRefreshPeriod: defaultDeviceRefreshPeriod,
+		deviceList:          NewDeviceList(dm.GetDevices()),
+		commandList:         NewCommandList(),
+		lastUpdate:          time.Now(),
+		editInput:           ti,
 	}
 }
 
@@ -100,19 +104,29 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
-		m.deviceList.SetWidth(msg.Width)
-		m.deviceList.SetHeight(msg.Height - 4)
-		return m, nil
-
+	case list.FilterMatchesMsg:
+		switch m.state {
+		case stateDeviceList:
+			m.deviceList, cmd = m.deviceList.Update(msg)
+		case stateDeviceSelected:
+			m.commandList, cmd = m.commandList.Update(msg)
+		}
 	case tea.KeyMsg:
 		switch m.state {
 		case stateDeviceList:
+			if m.deviceList.FilterState() == list.Filtering {
+				switch msg.String() {
+				case "enter", "q":
+					m.deviceList, cmd = m.deviceList.Update(msg)
+					return m, cmd
+				}
+			}
 			switch msg.String() {
 			case "enter":
-				if selectedItem, ok := m.deviceList.SelectedItem().(deviceItem); ok {
-					m.selectedDevice = selectedItem.device
+				if deviceItem, ok := m.deviceList.SelectedItem().(deviceItem); ok {
+					m.selectedDevice = deviceItem.device
 					m.state = stateDeviceSelected
+					m.deviceList.ResetFilter()
 					return m, nil
 				}
 			case "q", "ctrl+c":
@@ -121,13 +135,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.deviceList, cmd = m.deviceList.Update(msg)
 
 		case stateDeviceSelected:
+			if m.commandList.FilterState() == list.Filtering {
+				switch msg.String() {
+				case "enter", "q":
+					m.commandList, cmd = m.commandList.Update(msg)
+					return m, cmd
+				}
+			}
 			switch msg.String() {
 			case "enter":
-				if cmd, ok := m.commandList.SelectedItem().(Command); ok {
-					m.selectedCommand = &cmd
+				if commandItem, ok := m.commandList.SelectedItem().(commandItem); ok {
+					m.selectedCommand = commandItem.command
 
-					// Example: Execute command with some default parameters
-					switch cmd.ID {
+					switch m.selectedCommand.ID {
 					case "power_on", "power_off":
 						message, _ := m.selectedCommand.Handler()
 						m.deviceManager.Send(m.selectedDevice.Address, message)
@@ -198,6 +218,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case stateError:
 		}
 
+	case tea.WindowSizeMsg:
+		m.deviceList.SetWidth(msg.Width)
+		m.deviceList.SetHeight(msg.Height - 4)
+		return m, nil
+
 	case deviceSelectedMsg:
 		m.selectedDevice = client.Device(msg)
 		m.state = stateDeviceSelected
@@ -210,10 +235,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tickMsg:
 		// Only refresh if we're in the device list view or it's been a while
-		if m.state == stateDeviceList || time.Since(m.lastUpdate) > 5*time.Second {
+		switch {
+		case m.state == stateDeviceList && m.deviceList.FilterState() == list.Unfiltered:
 			return m, tea.Batch(m.refreshDevices(), m.tick())
+		case m.state != stateDeviceList && time.Since(m.lastUpdate) > 5*time.Second:
+			return m, tea.Batch(m.refreshDevices(), m.tick())
+		default:
+			return m, m.tick()
 		}
-		return m, m.tick()
 	}
 
 	return m, cmd
@@ -229,7 +258,7 @@ func (m model) refreshDevices() tea.Cmd {
 
 // Command for periodic updates
 func (m model) tick() tea.Cmd {
-	return tea.Tick(time.Second*2, func(t time.Time) tea.Msg {
+	return tea.Tick(m.deviceRefreshPeriod, func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
 }

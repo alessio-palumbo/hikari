@@ -65,9 +65,14 @@ func SortDevices(devices []Device) {
 
 func DeviceStateMessages() []*protocol.Message {
 	return []*protocol.Message{
-		protocol.NewMessage(&packets.DeviceGetVersion{}),
 		protocol.NewMessage(&packets.DeviceGetLabel{}),
+		protocol.NewMessage(&packets.DeviceGetVersion{}),
 		protocol.NewMessage(&packets.LightGet{}),
 		protocol.NewMessage(&packets.DeviceGetHostFirmware{}),
 	}
+}
+
+// ParseLabel parses the raw byte label into a string and trims C-style null bytes.
+func ParseLabel(label [32]byte) string {
+	return strings.Trim(string(label[:]), "\u0000")
 }

@@ -14,6 +14,14 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+var (
+	itemStyle         = lipgloss.NewStyle().PaddingLeft(4)
+	selectedItemStyle = lipgloss.NewStyle().PaddingLeft(2).Foreground(lipgloss.Color("170"))
+	paginationStyle   = list.DefaultStyles().PaginationStyle.PaddingLeft(4)
+	// helpStyle         = list.DefaultStyles().HelpStyle.PaddingLeft(4).PaddingBottom(1)
+	quitTextStyle = lipgloss.NewStyle().Margin(1, 0, 2, 4)
+)
+
 var commands = []Command{
 	{
 		ID:          "power_on",
@@ -112,64 +120,19 @@ type Command struct {
 	ParamTypes  []ParamType
 }
 
-// Implement list.Item interface for Command
-func (c Command) FilterValue() string {
-	return c.Name + " " + c.Description
+type commandItem struct {
+	command Command
 }
 
-// CommandRegistry manages available commands
-type CommandRegistry struct {
-	commandList []Command
-	commandsMap map[string]Command
+// Implement list.Item interface for commandItem
+func (i commandItem) FilterValue() string {
+	return i.command.Name
 }
-
-func NewCommandRegistry() *CommandRegistry {
-	registry := &CommandRegistry{
-		commandsMap: make(map[string]Command),
-	}
-
-	// Register all available commands
-	for _, cmd := range commands {
-		registry.commandsMap[cmd.ID] = cmd
-	}
-
-	return registry
-}
-
-func (r *CommandRegistry) GetCommand(id string) (Command, bool) {
-	cmd, exists := r.commandsMap[id]
-	return cmd, exists
-}
-
-func (r *CommandRegistry) ListCommands() []Command {
-	return commands
-}
-
-func (r *CommandRegistry) ExecuteCommand(id string, args ...ParamType) (*protocol.Message, error) {
-	cmd, exists := r.commandsMap[id]
-	if !exists {
-		return nil, fmt.Errorf("command not found: %s", id)
-	}
-
-	msg, err := cmd.Handler(args...)
-	if err != nil {
-		return nil, err
-	}
-	return msg, nil
-}
-
-var (
-	itemStyle         = lipgloss.NewStyle().PaddingLeft(4)
-	selectedItemStyle = lipgloss.NewStyle().PaddingLeft(2).Foreground(lipgloss.Color("170"))
-	paginationStyle   = list.DefaultStyles().PaginationStyle.PaddingLeft(4)
-	// helpStyle         = list.DefaultStyles().HelpStyle.PaddingLeft(4).PaddingBottom(1)
-	quitTextStyle = lipgloss.NewStyle().Margin(1, 0, 2, 4)
-)
 
 func NewCommandList() list.Model {
 	items := make([]list.Item, len(commands))
 	for i, cmd := range commands {
-		items[i] = cmd
+		items[i] = commandItem{command: cmd}
 	}
 
 	l := list.New(items, itemDelegate{}, 20, 14)
@@ -188,11 +151,12 @@ func (d itemDelegate) Height() int                             { return 1 }
 func (d itemDelegate) Spacing() int                            { return 0 }
 func (d itemDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
 func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
-	cmd, ok := listItem.(Command)
+	commandItem, ok := listItem.(commandItem)
 	if !ok {
 		return
 	}
 
+	cmd := commandItem.command
 	str := fmt.Sprintf("%s - %s", cmd.Name, cmd.Description)
 
 	fn := itemStyle.Render
