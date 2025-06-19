@@ -53,6 +53,8 @@ func NewParamsList(params []ParamType) list.Model {
 
 	delegate := list.NewDefaultDelegate()
 	l := list.New(items, delegate, 30, len(items)*7)
+	l.SetShowHelp(false)
+	l.SetStatusBarItemName("setting", "settings")
 	return l
 }
 

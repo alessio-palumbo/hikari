@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"slices"
 	"time"
 
 	"github.com/alessio-palumbo/hikari/pkg/client"
@@ -17,6 +18,8 @@ const (
 )
 
 var (
+	filterExcludedBindings = []string{"enter", "q"}
+
 	titleStyle = lipgloss.NewStyle().
 			Background(lipgloss.Color("62")).
 			Foreground(lipgloss.Color("230")).
@@ -46,8 +49,8 @@ type state int
 const (
 	stateDeviceList state = iota
 	stateDeviceSelected
+	stateCommandSelected
 	stateParamSelected
-	stateEditingParam
 	stateError
 )
 
@@ -100,6 +103,10 @@ func (m model) Init() tea.Cmd {
 	)
 }
 
+func shouldSkipBindingOnFilter(l list.Model, keypress string) bool {
+	return l.FilterState() == list.Filtering && slices.Contains(filterExcludedBindings, keypress)
+}
+
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
@@ -110,16 +117,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.deviceList, cmd = m.deviceList.Update(msg)
 		case stateDeviceSelected:
 			m.commandList, cmd = m.commandList.Update(msg)
+		case stateCommandSelected:
+			m.paramList, cmd = m.paramList.Update(msg)
 		}
 	case tea.KeyMsg:
 		switch m.state {
 		case stateDeviceList:
-			if m.deviceList.FilterState() == list.Filtering {
-				switch msg.String() {
-				case "enter", "q":
-					m.deviceList, cmd = m.deviceList.Update(msg)
-					return m, cmd
-				}
+			if shouldSkipBindingOnFilter(m.deviceList, msg.String()) {
+				m.deviceList, cmd = m.deviceList.Update(msg)
+				return m, cmd
 			}
 			switch msg.String() {
 			case "enter":
@@ -135,12 +141,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.deviceList, cmd = m.deviceList.Update(msg)
 
 		case stateDeviceSelected:
-			if m.commandList.FilterState() == list.Filtering {
-				switch msg.String() {
-				case "enter", "q":
-					m.commandList, cmd = m.commandList.Update(msg)
-					return m, cmd
-				}
+			if shouldSkipBindingOnFilter(m.commandList, msg.String()) {
+				m.commandList, cmd = m.commandList.Update(msg)
+				return m, cmd
 			}
 			switch msg.String() {
 			case "enter":
@@ -154,7 +157,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					case "set_color", "set_brightness":
 						m.paramList = NewParamsList(m.selectedCommand.ParamTypes)
 						m.paramList.Title = fmt.Sprintf("Params for %s", m.selectedCommand.Name)
-						m.state = stateParamSelected
+						m.state = stateCommandSelected
 						return m, nil
 					}
 				}
@@ -166,7 +169,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.commandList, cmd = m.commandList.Update(msg)
 
-		case stateParamSelected:
+		case stateCommandSelected:
+			if shouldSkipBindingOnFilter(m.paramList, msg.String()) {
+				m.paramList, cmd = m.paramList.Update(msg)
+				return m, cmd
+			}
 			switch msg.String() {
 			case "enter":
 				m.selectedParamIndex = m.paramList.Index()
@@ -177,7 +184,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.editInput.CursorEnd()
 				m.editInput.Focus()
 
-				m.state = stateEditingParam
+				m.state = stateParamSelected
 				return m, nil
 
 			case "a":
@@ -196,7 +203,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.paramList, cmd = m.paramList.Update(msg)
 
-		case stateEditingParam:
+		case stateParamSelected:
 			switch msg.String() {
 			case "enter":
 				val := m.editInput.Value()
@@ -207,11 +214,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				m.errMessage = ""
 				paramItem.param.Value = val
-				m.state = stateParamSelected
+				m.state = stateCommandSelected
 				return m, nil
 
 			case "esc", "ctrl+b":
-				m.state = stateParamSelected
+				m.state = stateCommandSelected
 				return m, nil
 			}
 			m.editInput, cmd = m.editInput.Update(msg)
@@ -307,46 +314,49 @@ func (m *model) updateDeviceList(devices []client.Device) {
 }
 
 func (m model) View() string {
+	title := titleStyle.Render("Hikari")
 	switch m.state {
 	case stateDeviceList:
 		return fmt.Sprintf("%s\n%s\n%s\n%s",
-			titleStyle.Render("Hikari"),
+			title,
 			m.deviceList.View(),
 			statusStyle.Render(fmt.Sprintf("Last updated: %s | Devices: %d",
 				m.lastUpdate.Format("15:04:05"), len(m.deviceList.Items()))),
-			helpStyle.Render("↑/↓: navigate • enter: select device • q: quit"),
+			helpStyle.Render("↑/↓: navigate • enter: select device • q: quit| devices"),
 		)
 
 	case stateDeviceSelected:
 		return fmt.Sprintf("%s\n\n%s\n%s\n\n%s",
-			titleStyle.Render("Hikari"),
+			title,
 			deviceTitle(m.selectedDevice),
 			m.commandList.View(),
-			helpStyle.Render("↑/↓: navigate • enter: send • esc: back • ctrl+c: quit"),
+			helpStyle.Render("↑/↓: navigate • enter: select • esc: back • q: quit"),
 		)
 
-	case stateParamSelected:
-		return fmt.Sprintf("%s\n\n%s\n%s\n\n%s",
-			titleStyle.Render("Hikari"),
-			selectedStyle.Render(fmt.Sprintf("Command: %s", m.selectedCommand.Name)),
+	case stateCommandSelected:
+		return fmt.Sprintf("%s\n\n%s\n\n%s",
+			title,
 			m.paramList.View(),
-			helpStyle.Render("↑/↓: navigate • enter: send • esc: back • ctrl+c: quit"),
+			helpStyle.Render("↑/↓: navigate • enter: edit • esc: back • q: quit"),
 		)
-	case stateEditingParam:
-		param := m.selectedCommand.ParamTypes[m.selectedParamIndex]
-		var err string
-		if m.errMessage != "" {
-			err = fmt.Sprintf("\n\n❌ Error: %s", m.errMessage)
-		}
+	case stateParamSelected:
 		return fmt.Sprintf(
-			"\nEditing parameter: %s\n\n%s%s\n\n%s",
-			param.Name,
+			"%s\n\nEditing parameter: %s\n\n%s%s\n\n%s",
+			title,
+			m.selectedCommand.ParamTypes[m.selectedParamIndex].Name,
 			m.editInput.View(),
-			err,
-			helpStyle.Render("↑/↓: navigate • enter: send • esc: back • ctrl+c: quit"),
+			m.renderError(),
+			helpStyle.Render("↑/↓: navigate • enter: set • esc: back • q: quit"),
 		)
 	}
 
+	return ""
+}
+
+func (m model) renderError() string {
+	if m.errMessage != "" {
+		return fmt.Sprintf("\n\n❌ Error: %s", m.errMessage)
+	}
 	return ""
 }
 

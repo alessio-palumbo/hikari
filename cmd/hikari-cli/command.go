@@ -138,6 +138,7 @@ func NewCommandList() list.Model {
 	l := list.New(items, itemDelegate{}, 20, 14)
 	l.Title = "Select a Command"
 	l.SetShowStatusBar(false)
+	l.SetShowHelp(false)
 	l.SetFilteringEnabled(true) // Enable filtering by command name/description
 	l.Styles.Title = titleStyle
 	l.Styles.PaginationStyle = paginationStyle
