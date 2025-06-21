@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
+	hlist "github.com/alessio-palumbo/hikari/cmd/hikari-cli/list"
 	"github.com/alessio-palumbo/hikari/internal/protocol"
 	"github.com/alessio-palumbo/hikari/pkg/client"
 	"github.com/charmbracelet/bubbles/list"
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -139,44 +139,31 @@ func (i Item) NewParams() list.Model {
 }
 
 func NewList() list.Model {
-	items := make([]list.Item, len(commands))
-	for i, c := range commands {
-		items[i] = Item(c)
-	}
-
-	// l := list.New(items, commandDelegate{}, 20, 14)
-	l := list.New(items, commandDelegate{}, 0, len(items)*2)
-	l.SetShowTitle(false)
-	l.SetShowStatusBar(false)
-	l.SetShowHelp(false)
-	l.SetFilteringEnabled(true) // Enable filtering by command name/description
-	// l.Styles.Title = titleStyle
-	l.Styles.PaginationStyle = paginationStyle
-	// l.Styles.HelpStyle = helpStyle
-	return l
-}
-
-type commandDelegate struct{}
-
-func (d commandDelegate) Height() int                             { return 1 }
-func (d commandDelegate) Spacing() int                            { return 0 }
-func (d commandDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
-func (d commandDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
-	item, ok := listItem.(Item)
-	if !ok {
-		return
-	}
-
-	str := fmt.Sprintf("%s - %s", item.Name, item.Description)
-
-	fn := itemStyle.Render
-	if index == m.Index() {
-		fn = func(s ...string) string {
-			return selectedItemStyle.Render("> " + strings.Join(s, " "))
+	renderFunc := func(w io.Writer, m list.Model, index int, listItem list.Item) {
+		item, ok := listItem.(Item)
+		if !ok {
+			return
 		}
+
+		str := fmt.Sprintf("%s - %s", item.Name, item.Description)
+
+		fn := itemStyle.Render
+		if index == m.Index() {
+			fn = func(s ...string) string {
+				return selectedItemStyle.Render("> " + strings.Join(s, " "))
+			}
+		}
+
+		fmt.Fprint(w, fn(str))
 	}
 
-	fmt.Fprint(w, fn(str))
+	d := hlist.NewDelegate(renderFunc)
+
+	f := func(i Command) list.Item { return Item(i) }
+	l := hlist.New(commands, f, d)
+	l.SetHeight(len(commands) * 2)
+
+	return l
 }
 
 func parseFloat64Input(s string) (*float64, error) {

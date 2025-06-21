@@ -5,9 +5,9 @@ import (
 	"io"
 
 	"github.com/alessio-palumbo/hikari/cmd/hikari-cli/color"
+	hlist "github.com/alessio-palumbo/hikari/cmd/hikari-cli/list"
 	"github.com/alessio-palumbo/hikari/pkg/client"
 	"github.com/charmbracelet/bubbles/list"
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -17,12 +17,12 @@ var (
 		Border(lipgloss.NormalBorder(), false, false, false, true).
 		BorderForeground(lipgloss.AdaptiveColor{Light: "#F793FF", Dark: "#AD58B4"}).
 		Foreground(lipgloss.AdaptiveColor{Light: "#EE6FF8", Dark: "#EE6FF8"}).
-		Padding(0, 0, 0, 2)
+		Padding(0, 0, 0, 1)
 
 	nstyle = lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.AdaptiveColor{Light: "#1a1a1a", Dark: "#dddddd"}).
-		Padding(0, 0, 0, 2)
+		Padding(0, 0, 0, 1)
 )
 
 // Item implements the list.Item interface.
@@ -84,40 +84,29 @@ func (i Item) Info() string {
 }
 
 func NewList(devices []client.Device) list.Model {
-	items := make([]list.Item, len(devices))
-	for i, device := range devices {
-		items[i] = Item(device)
-	}
+	renderFunc := func(w io.Writer, m list.Model, index int, listItem list.Item) {
+		deviceItem, ok := listItem.(Item)
+		if !ok {
+			return
+		}
 
-	l := list.New(items, deviceDelegate{}, 0, 0)
-	l.SetShowTitle(false)
-	l.SetShowHelp(false)
-	l.SetFilteringEnabled(true)
+		str := deviceItem.Title()
+
+		fn := nstyle.Render
+		if index == m.Index() {
+			fn = func(s ...string) string {
+				return sstyle.Render(s...)
+			}
+		}
+
+		fmt.Fprint(w, fn(str))
+	}
+	d := hlist.NewDelegate(renderFunc, hlist.SetDelegateSpacing(1))
+
+	f := func(i client.Device) list.Item { return Item(i) }
+	l := hlist.New(devices, f, d)
 	l.SetStatusBarItemName("device", "devices")
 	return l
-}
-
-type deviceDelegate struct{}
-
-func (d deviceDelegate) Height() int                             { return 1 }
-func (d deviceDelegate) Spacing() int                            { return 1 }
-func (d deviceDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
-func (d deviceDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
-	deviceItem, ok := listItem.(Item)
-	if !ok {
-		return
-	}
-
-	str := deviceItem.Title()
-
-	fn := nstyle.Render
-	if index == m.Index() {
-		fn = func(s ...string) string {
-			return sstyle.Render(s...)
-		}
-	}
-
-	fmt.Fprint(w, fn(str))
 }
 
 func rgbColorBlock(r, g, b int, text string) string {

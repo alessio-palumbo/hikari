@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
+	hlist "github.com/alessio-palumbo/hikari/cmd/hikari-cli/list"
 	"github.com/charmbracelet/bubbles/list"
-	tea "github.com/charmbracelet/bubbletea"
 )
 
 // paramType defines a parameter for a command.
@@ -55,46 +55,34 @@ func ParamItemsFromModel(l list.Model) []ParamItem {
 }
 
 func newParamsList(params []paramType) list.Model {
-	items := make([]list.Item, len(params))
-	for i, p := range params {
-		items[i] = ParamItem{&p}
-	}
-
-	// delegate := list.NewDefaultDelegate()
-	// delegate.SetHeight(5)
-	l := list.New(items, paramDelegate{}, 0, len(items)*2+1)
-	l.SetShowTitle(false)
-	l.SetShowStatusBar(false)
-	l.SetShowHelp(false)
-	// l.SetStatusBarItemName("setting", "settings")
-	return l
-}
-
-type paramDelegate struct{}
-
-func (d paramDelegate) Height() int                             { return 1 }
-func (d paramDelegate) Spacing() int                            { return 0 }
-func (d paramDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
-func (d paramDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
-	item, ok := listItem.(ParamItem)
-	if !ok {
-		return
-	}
-
-	name := item.Name
-	if item.Required {
-		name = name + " *"
-	}
-	str := fmt.Sprintf("%s - %s", name, item.Description)
-
-	fn := itemStyle.Render
-	if index == m.Index() {
-		fn = func(s ...string) string {
-			return selectedItemStyle.Render("> " + strings.Join(s, " "))
+	renderFunc := func(w io.Writer, m list.Model, index int, listItem list.Item) {
+		item, ok := listItem.(ParamItem)
+		if !ok {
+			return
 		}
-	}
 
-	fmt.Fprint(w, fn(str))
+		name := item.Name
+		if item.Required {
+			name = name + " *"
+		}
+		str := fmt.Sprintf("%s - %s", name, item.Description)
+
+		fn := itemStyle.Render
+		if index == m.Index() {
+			fn = func(s ...string) string {
+				return selectedItemStyle.Render("> " + strings.Join(s, " "))
+			}
+		}
+
+		fmt.Fprint(w, fn(str))
+	}
+	d := hlist.NewDelegate(renderFunc)
+
+	f := func(i paramType) list.Item { return ParamItem{&i} }
+	l := hlist.New(params, f, d)
+	l.SetHeight(len(commands)*2 + 1)
+
+	return l
 }
 
 func HueValidator(v string) error {
