@@ -1,4 +1,4 @@
-package main
+package command
 
 import (
 	"fmt"
@@ -17,7 +17,10 @@ import (
 var (
 	itemStyle         = lipgloss.NewStyle().PaddingLeft(4)
 	selectedItemStyle = lipgloss.NewStyle().PaddingLeft(2).Foreground(lipgloss.Color("170"))
-	paginationStyle   = list.DefaultStyles().PaginationStyle.PaddingLeft(4)
+	titleStyle        = lipgloss.NewStyle().MarginLeft(2).
+				Foreground(lipgloss.Color("#FFFDF5")).
+				Background(lipgloss.Color("#25A065"))
+	paginationStyle = list.DefaultStyles().PaginationStyle.PaddingLeft(4)
 	// helpStyle         = list.DefaultStyles().HelpStyle.PaddingLeft(4).PaddingBottom(1)
 	quitTextStyle = lipgloss.NewStyle().Margin(1, 0, 2, 4)
 )
@@ -27,25 +30,25 @@ var commands = []Command{
 		ID:          "power_on",
 		Name:        "Power On",
 		Description: "Turn the device on",
-		Handler: func(params ...ParamType) (*protocol.Message, error) {
+		Handler: func(params ...ParamItem) (*protocol.Message, error) {
 			return client.SetPowerOn(), nil
 		},
-		ParamTypes: []ParamType{},
+		ParamTypes: []paramType{},
 	},
 	{
 		ID:          "power_off",
 		Name:        "Power Off",
 		Description: "Turn the device off",
-		Handler: func(params ...ParamType) (*protocol.Message, error) {
+		Handler: func(params ...ParamItem) (*protocol.Message, error) {
 			return client.SetPowerOff(), nil
 		},
-		ParamTypes: []ParamType{},
+		ParamTypes: []paramType{},
 	},
 	{
 		ID:          "set_color",
 		Name:        "Set Color",
 		Description: "Change device color (HSB + Kelvin)",
-		Handler: func(params ...ParamType) (*protocol.Message, error) {
+		Handler: func(params ...ParamItem) (*protocol.Message, error) {
 			var (
 				h, s, b *float64
 				k       *uint16
@@ -54,25 +57,25 @@ var commands = []Command{
 			)
 
 			for _, p := range params {
-				if v := p.Value; v != "" {
+				if v := p.GetValue(); v != "" {
 					switch p.Name {
 					case "hue":
-						h, err = parseFloat64Input(p.Value)
+						h, err = parseFloat64Input(v)
 					case "saturation":
-						s, err = parseFloat64Input(p.Value)
+						s, err = parseFloat64Input(v)
 					case "brightness":
-						b, err = parseFloat64Input(p.Value)
+						b, err = parseFloat64Input(v)
 					case "kelvin":
-						k, err = parseUint16Input(p.Value)
+						k, err = parseUint16Input(v)
 					case "duration":
-						d, err = parseDurationInput(p.Value)
+						d, err = parseDurationInput(v)
 					}
 				}
 			}
 
 			return client.SetColor(h, s, b, k, d), err
 		},
-		ParamTypes: []ParamType{
+		ParamTypes: []paramType{
 			{Name: "hue", Type: "float64", Required: false, Description: "Hue (0-360)", Validator: HueValidator},
 			{Name: "saturation", Type: "float64", Required: false, Description: "Saturation (0-100)", Validator: PercentageValidator},
 			{Name: "brightness", Type: "float64", Required: false, Description: "Brightness (0-100)", Validator: PercentageValidator},
@@ -84,7 +87,7 @@ var commands = []Command{
 		ID:          "set_brightness",
 		Name:        "Set Brightness",
 		Description: "Adjust device brightness",
-		Handler: func(params ...ParamType) (*protocol.Message, error) {
+		Handler: func(params ...ParamItem) (*protocol.Message, error) {
 			var (
 				b   *float64
 				d   time.Duration
@@ -92,19 +95,19 @@ var commands = []Command{
 			)
 
 			for _, p := range params {
-				if v := p.Value; v != "" {
+				if v := p.GetValue(); v != "" {
 					switch p.Name {
 					case "brightness":
-						b, err = parseFloat64Input(p.Value)
+						b, err = parseFloat64Input(v)
 					case "duration":
-						d, err = parseDurationInput(p.Value)
+						d, err = parseDurationInput(v)
 					}
 				}
 			}
 
 			return client.SetColor(nil, nil, b, nil, d), err
 		},
-		ParamTypes: []ParamType{
+		ParamTypes: []paramType{
 			{Name: "brightness", Type: "float64", Required: true, Description: "Brightness (0-100)", Validator: PercentageValidator},
 			{Name: "duration", Type: "duration", Required: false, Description: "Transition seconds"},
 		},
@@ -116,49 +119,55 @@ type Command struct {
 	ID          string
 	Name        string
 	Description string
-	Handler     func(args ...ParamType) (*protocol.Message, error)
-	ParamTypes  []ParamType
+	Handler     func(args ...ParamItem) (*protocol.Message, error)
+	ParamTypes  []paramType
 }
 
-type commandItem struct {
-	command Command
+// Item implements list.Item interface.
+type Item Command
+
+func (i Item) FilterValue() string {
+	return i.Name
 }
 
-// Implement list.Item interface for commandItem
-func (i commandItem) FilterValue() string {
-	return i.command.Name
+func (i Item) Title() string {
+	return titleStyle.Render(i.Name)
 }
 
-func NewCommandList() list.Model {
+func (i Item) NewParams() list.Model {
+	return newParamsList(i.ParamTypes)
+}
+
+func NewList() list.Model {
 	items := make([]list.Item, len(commands))
-	for i, cmd := range commands {
-		items[i] = commandItem{command: cmd}
+	for i, c := range commands {
+		items[i] = Item(c)
 	}
 
-	l := list.New(items, itemDelegate{}, 20, 14)
-	l.Title = "Select a Command"
+	// l := list.New(items, commandDelegate{}, 20, 14)
+	l := list.New(items, commandDelegate{}, 0, len(items)*2)
+	l.SetShowTitle(false)
 	l.SetShowStatusBar(false)
 	l.SetShowHelp(false)
 	l.SetFilteringEnabled(true) // Enable filtering by command name/description
-	l.Styles.Title = titleStyle
+	// l.Styles.Title = titleStyle
 	l.Styles.PaginationStyle = paginationStyle
 	// l.Styles.HelpStyle = helpStyle
 	return l
 }
 
-type itemDelegate struct{}
+type commandDelegate struct{}
 
-func (d itemDelegate) Height() int                             { return 1 }
-func (d itemDelegate) Spacing() int                            { return 0 }
-func (d itemDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
-func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
-	commandItem, ok := listItem.(commandItem)
+func (d commandDelegate) Height() int                             { return 1 }
+func (d commandDelegate) Spacing() int                            { return 0 }
+func (d commandDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
+func (d commandDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
+	item, ok := listItem.(Item)
 	if !ok {
 		return
 	}
 
-	cmd := commandItem.command
-	str := fmt.Sprintf("%s - %s", cmd.Name, cmd.Description)
+	str := fmt.Sprintf("%s - %s", item.Name, item.Description)
 
 	fn := itemStyle.Render
 	if index == m.Index() {

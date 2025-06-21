@@ -6,6 +6,8 @@ import (
 	"slices"
 	"time"
 
+	"github.com/alessio-palumbo/hikari/cmd/hikari-cli/command"
+	"github.com/alessio-palumbo/hikari/cmd/hikari-cli/device"
 	"github.com/alessio-palumbo/hikari/pkg/client"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -48,9 +50,9 @@ type state int
 
 const (
 	stateDeviceList state = iota
-	stateDeviceSelected
-	stateCommandSelected
-	stateParamSelected
+	stateCommandList
+	stateParamList
+	stateParamEdit
 	stateError
 )
 
@@ -64,9 +66,10 @@ type model struct {
 	deviceManager       *client.DeviceManager
 	deviceRefreshPeriod time.Duration
 	deviceList          list.Model
-	selectedDevice      client.Device
+	selectedDevice      device.Item
+	showDeviceInfo      bool
 	commandList         list.Model
-	selectedCommand     Command
+	selectedCommand     command.Item
 	paramList           list.Model
 	editInput           textinput.Model
 	selectedParamIndex  int
@@ -90,8 +93,8 @@ func initialModel() model {
 		state:               stateDeviceList,
 		deviceManager:       dm,
 		deviceRefreshPeriod: defaultDeviceRefreshPeriod,
-		deviceList:          NewDeviceList(dm.GetDevices()),
-		commandList:         NewCommandList(),
+		deviceList:          device.NewList(dm.GetDevices()),
+		commandList:         command.NewList(),
 		lastUpdate:          time.Now(),
 		editInput:           ti,
 	}
@@ -115,9 +118,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch m.state {
 		case stateDeviceList:
 			m.deviceList, cmd = m.deviceList.Update(msg)
-		case stateDeviceSelected:
+		case stateCommandList:
 			m.commandList, cmd = m.commandList.Update(msg)
-		case stateCommandSelected:
+		case stateParamList:
 			m.paramList, cmd = m.paramList.Update(msg)
 		}
 	case tea.KeyMsg:
@@ -129,35 +132,40 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			switch msg.String() {
 			case "enter":
-				if deviceItem, ok := m.deviceList.SelectedItem().(deviceItem); ok {
-					m.selectedDevice = deviceItem.device
-					m.state = stateDeviceSelected
+				if deviceItem, ok := m.deviceList.SelectedItem().(device.Item); ok {
+					m.selectedDevice = deviceItem
+					m.state = stateCommandList
 					m.deviceList.ResetFilter()
 					return m, nil
 				}
 			case "q", "ctrl+c":
 				return m, tea.Quit
+			case "i":
+				if deviceItem, ok := m.deviceList.SelectedItem().(device.Item); ok {
+					m.selectedDevice = deviceItem
+					m.showDeviceInfo = !m.showDeviceInfo
+					return m, nil
+				}
 			}
 			m.deviceList, cmd = m.deviceList.Update(msg)
 
-		case stateDeviceSelected:
+		case stateCommandList:
 			if shouldSkipBindingOnFilter(m.commandList, msg.String()) {
 				m.commandList, cmd = m.commandList.Update(msg)
 				return m, cmd
 			}
 			switch msg.String() {
 			case "enter":
-				if commandItem, ok := m.commandList.SelectedItem().(commandItem); ok {
-					m.selectedCommand = commandItem.command
+				if commandItem, ok := m.commandList.SelectedItem().(command.Item); ok {
+					m.selectedCommand = commandItem
 
 					switch m.selectedCommand.ID {
 					case "power_on", "power_off":
 						message, _ := m.selectedCommand.Handler()
 						m.deviceManager.Send(m.selectedDevice.Address, message)
 					case "set_color", "set_brightness":
-						m.paramList = NewParamsList(m.selectedCommand.ParamTypes)
-						m.paramList.Title = fmt.Sprintf("Params for %s", m.selectedCommand.Name)
-						m.state = stateCommandSelected
+						m.paramList = m.selectedCommand.NewParams()
+						m.state = stateParamList
 						return m, nil
 					}
 				}
@@ -169,7 +177,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.commandList, cmd = m.commandList.Update(msg)
 
-		case stateCommandSelected:
+		case stateParamList:
 			if shouldSkipBindingOnFilter(m.paramList, msg.String()) {
 				m.paramList, cmd = m.paramList.Update(msg)
 				return m, cmd
@@ -177,48 +185,48 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch msg.String() {
 			case "enter":
 				m.selectedParamIndex = m.paramList.Index()
-				paramItem := m.paramList.Items()[m.selectedParamIndex].(paramItem)
+				paramItem := m.paramList.Items()[m.selectedParamIndex].(command.ParamItem)
 
-				m.editInput.SetValue(paramItem.param.Value)
-				m.editInput.Placeholder = paramItem.param.Description
+				m.editInput.SetValue(paramItem.GetValue())
+				m.editInput.Placeholder = paramItem.Description
 				m.editInput.CursorEnd()
 				m.editInput.Focus()
 
-				m.state = stateParamSelected
+				m.state = stateParamEdit
 				return m, nil
 
 			case "a":
-				message, err := m.selectedCommand.Handler(m.selectedCommand.ParamTypes...)
+				message, err := m.selectedCommand.Handler(command.ParamItemsFromModel(m.paramList)...)
 				if err != nil {
 					m.errMessage = err.Error()
 					return m, nil
 				}
 				m.deviceManager.Send(m.selectedDevice.Address, message)
-				m.state = stateDeviceSelected
+				m.state = stateCommandList
 				return m, nil
 
-			case "esc", "ctrl+b":
-				m.state = stateDeviceSelected
+			case "esc", "ctrl+b", "backspace":
+				m.state = stateCommandList
 				return m, nil
 			}
 			m.paramList, cmd = m.paramList.Update(msg)
 
-		case stateParamSelected:
+		case stateParamEdit:
 			switch msg.String() {
 			case "enter":
 				val := m.editInput.Value()
-				paramItem := m.paramList.Items()[m.paramList.Index()].(paramItem)
-				if err := paramItem.param.ValidateValue(val); err != nil {
+				paramItem := m.paramList.Items()[m.paramList.Index()].(command.ParamItem)
+				if err := paramItem.ValidateValue(val); err != nil {
 					m.errMessage = err.Error()
 					return m, nil
 				}
 				m.errMessage = ""
-				paramItem.param.Value = val
-				m.state = stateCommandSelected
+				paramItem.SetValue(val)
+				m.state = stateParamList
 				return m, nil
 
 			case "esc", "ctrl+b":
-				m.state = stateCommandSelected
+				m.state = stateParamList
 				return m, nil
 			}
 			m.editInput, cmd = m.editInput.Update(msg)
@@ -231,8 +239,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case deviceSelectedMsg:
-		m.selectedDevice = client.Device(msg)
-		m.state = stateDeviceSelected
+		m.selectedDevice = device.Item(msg)
+		m.state = stateCommandList
 		return m, nil
 
 	case deviceUpdateMsg:
@@ -275,18 +283,18 @@ func (m *model) updateDeviceList(devices []client.Device) {
 	// Remember current selection
 	var selectedIndex int
 	var selectedSerial client.Serial
-	if selectedItem, ok := m.deviceList.SelectedItem().(deviceItem); ok {
-		selectedSerial = selectedItem.device.Serial
+	if selectedItem, ok := m.deviceList.SelectedItem().(device.Item); ok {
 		selectedIndex = m.deviceList.Index()
+		selectedSerial = selectedItem.Serial
 	}
 
 	// Update list items
 	items := make([]list.Item, len(devices))
 	newSelectedIndex := 0
-	for i, device := range devices {
-		items[i] = deviceItem{device: device}
+	for i, d := range devices {
+		items[i] = device.Item(d)
 		// Try to maintain selection on the same device
-		if device.Serial == selectedSerial {
+		if d.Serial == selectedSerial {
 			newSelectedIndex = i
 		}
 	}
@@ -304,9 +312,9 @@ func (m *model) updateDeviceList(devices []client.Device) {
 
 	// Update selected device if it still exists
 	if !selectedSerial.IsNil() {
-		for _, device := range devices {
-			if device.Serial == selectedSerial {
-				m.selectedDevice = device
+		for _, d := range devices {
+			if d.Serial == selectedSerial {
+				m.selectedDevice = device.Item(d)
 				break
 			}
 		}
@@ -317,29 +325,41 @@ func (m model) View() string {
 	title := titleStyle.Render("Hikari")
 	switch m.state {
 	case stateDeviceList:
-		return fmt.Sprintf("%s\n%s\n%s\n%s",
+		deviceView := fmt.Sprintf("%s\n%s\n%s\n%s",
 			title,
 			m.deviceList.View(),
 			statusStyle.Render(fmt.Sprintf("Last updated: %s | Devices: %d",
 				m.lastUpdate.Format("15:04:05"), len(m.deviceList.Items()))),
 			helpStyle.Render("↑/↓: navigate • enter: select device • q: quit| devices"),
 		)
+		var modal string
+		if deviceItem, ok := m.deviceList.SelectedItem().(device.Item); ok && m.showDeviceInfo {
+			modal = "\n" + lipgloss.Place(20, m.deviceList.Height(),
+				lipgloss.Left, lipgloss.Top,
+				deviceItem.Info(),
+			)
 
-	case stateDeviceSelected:
+			return lipgloss.JoinHorizontal(lipgloss.Top, deviceView, modal)
+		}
+		return deviceView
+
+	case stateCommandList:
 		return fmt.Sprintf("%s\n\n%s\n%s\n\n%s",
 			title,
-			deviceTitle(m.selectedDevice),
+			m.selectedDevice.Title(),
 			m.commandList.View(),
 			helpStyle.Render("↑/↓: navigate • enter: select • esc: back • q: quit"),
 		)
 
-	case stateCommandSelected:
-		return fmt.Sprintf("%s\n\n%s\n\n%s",
+	case stateParamList:
+		return fmt.Sprintf("%s\n\n%s\n\n%s\n%s\n\n%s",
 			title,
+			m.selectedDevice.Title(),
+			m.selectedCommand.Title(),
 			m.paramList.View(),
 			helpStyle.Render("↑/↓: navigate • enter: edit • esc: back • q: quit"),
 		)
-	case stateParamSelected:
+	case stateParamEdit:
 		return fmt.Sprintf(
 			"%s\n\nEditing parameter: %s\n\n%s%s\n\n%s",
 			title,
