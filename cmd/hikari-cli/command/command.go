@@ -80,7 +80,7 @@ var commands = []Command{
 			{Name: "saturation", Type: "float64", Required: false, Description: "Saturation (0-100)", Validator: PercentageValidator},
 			{Name: "brightness", Type: "float64", Required: false, Description: "Brightness (0-100)", Validator: PercentageValidator},
 			{Name: "kelvin", Type: "uint16", Required: false, Description: "Kelvin (1500-9000)", Validator: KelvinValidator},
-			{Name: "duration", Type: "duration", Required: false, Description: "Transition seconds"},
+			{Name: "duration", Type: "duration", Required: false, Description: "Transition seconds", Validator: DurationValidator},
 		},
 	},
 	{
@@ -109,7 +109,7 @@ var commands = []Command{
 		},
 		ParamTypes: []paramType{
 			{Name: "brightness", Type: "float64", Required: true, Description: "Brightness (0-100)", Validator: PercentageValidator},
-			{Name: "duration", Type: "duration", Required: false, Description: "Transition seconds"},
+			{Name: "duration", Type: "duration", Required: false, Description: "Transition seconds", Validator: DurationValidator},
 		},
 	},
 }
@@ -184,9 +184,9 @@ func parseUint16Input(s string) (*uint16, error) {
 }
 
 func parseDurationInput(s string) (time.Duration, error) {
-	v, err := time.ParseDuration(s)
+	v, err := strconv.ParseInt(s, 10, 64)
 	if err != nil {
 		return time.Duration(0), fmt.Errorf("invalid value for duration")
 	}
-	return v, nil
+	return time.Duration(v) * time.Second, nil
 }
