@@ -3,11 +3,16 @@ package command
 import (
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	hlist "github.com/alessio-palumbo/hikari/cmd/hikari-cli/list"
 	"github.com/alessio-palumbo/hikari/cmd/hikari-cli/style"
 	"github.com/charmbracelet/bubbles/list"
+)
+
+const (
+	defaultPaddingAfterName = 5
 )
 
 // paramType defines a parameter for a command.
@@ -34,6 +39,10 @@ func (p ParamItem) ValidateValue(v string) error {
 	return nil
 }
 
+func (i ParamItem) Title() string {
+	return style.ListTitle.Render(fmt.Sprintf("Setting %s", i.Name))
+}
+
 func (p ParamItem) GetValue() string {
 	if p.paramType != nil && p.value != nil {
 		return *p.value
@@ -55,17 +64,32 @@ func ParamItemsFromModel(l list.Model) []ParamItem {
 }
 
 func newParamsList(params []paramType) list.Model {
+	// Calculate longest name for padding value.
+	var longestName int
+	for _, p := range params {
+		l := len(p.Name)
+		if l > longestName {
+			longestName = l
+		}
+	}
+
 	renderFunc := func(w io.Writer, m list.Model, index int, listItem list.Item) {
 		item, ok := listItem.(ParamItem)
 		if !ok {
 			return
 		}
 
-		name := item.Name
+		str := item.Name
 		if item.Required {
-			name = name + " *"
+			str = str + " *"
 		}
-		str := fmt.Sprintf("%s - %s", name, item.Description)
+		padding := longestName + defaultPaddingAfterName - len(str)
+
+		if v := item.GetValue(); v != "" {
+			str = fmt.Sprintf("%s%s-> [%s]", str, strings.Repeat(" ", padding), v)
+		} else {
+			str = fmt.Sprintf("%s%s-> [not set]", str, strings.Repeat(" ", padding))
+		}
 
 		fn := style.ListItem.Render
 		if index == m.Index() {

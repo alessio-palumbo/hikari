@@ -339,9 +339,10 @@ func (m model) View() string {
 		)
 	case stateParamEdit:
 		return fmt.Sprintf(
-			"%s\n\nEditing parameter: %s\n\n%s%s\n\n%s",
+			"%s\n\n%s\n\n%s\n\n%s%s\n\n%s",
 			title,
-			m.selectedCommand.ParamTypes[m.selectedParamIndex].Name,
+			m.selectedDevice.Title(),
+			m.paramList.Items()[m.paramList.Index()].(command.ParamItem).Title(),
 			m.editInput.View(),
 			m.renderError(),
 			style.Help.Render("↑/↓: navigate • enter: set • esc: back • q: quit"),

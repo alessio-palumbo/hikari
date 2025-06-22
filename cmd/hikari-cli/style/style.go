@@ -18,7 +18,7 @@ var (
 var (
 	ListSelected = lipgloss.NewStyle().
 			Bold(true).
-			Border(lipgloss.Border{Left: ">"}, false, false, false, true).
+			Border(lipgloss.Border{Left: "┃"}, false, false, false, true).
 			BorderForeground(SelectedBorder).
 			Foreground(SelectedColor).
 			PaddingLeft(1)

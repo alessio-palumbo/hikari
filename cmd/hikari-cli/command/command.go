@@ -133,8 +133,6 @@ func NewList() list.Model {
 			return
 		}
 
-		str := fmt.Sprintf("%s - %s", item.Name, item.Description)
-
 		fn := style.ListItem.Render
 		if index == m.Index() {
 			fn = func(s ...string) string {
@@ -142,7 +140,7 @@ func NewList() list.Model {
 			}
 		}
 
-		fmt.Fprint(w, fn(str))
+		fmt.Fprint(w, fn(item.Name))
 	}
 
 	d := hlist.NewDelegate(renderFunc)

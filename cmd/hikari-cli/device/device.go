@@ -19,11 +19,11 @@ func (i Item) FilterValue() string {
 	return i.Label
 }
 
-func (i Item) Title() string {
+func (i Item) StateSphere() string {
 	if !i.PoweredOn {
-		return fmt.Sprintf("⚫ %s", i.Label)
+		return "⚫"
 	} else if i.Type == client.DeviceTypeSwitch {
-		return fmt.Sprintf("🔘 %s", i.Label)
+		return "🔘"
 	}
 
 	var r, g, b int
@@ -33,7 +33,11 @@ func (i Item) Title() string {
 		r, g, b = color.HSBToRGB(i.Color.Hue, i.Color.Saturation, i.Color.Brightness)
 	}
 
-	return fmt.Sprintf("%s %s", rgbColorBlock(r, g, b, "⬤"), i.Label)
+	return rgbColorBlock(r, g, b, "⬤")
+}
+
+func (i Item) Title() string {
+	return fmt.Sprintf("%s %s", i.StateSphere(), i.Label)
 }
 
 func (i Item) Info() string {
@@ -77,16 +81,18 @@ func NewList(devices []client.Device) list.Model {
 			return
 		}
 
-		str := deviceItem.Title()
-
-		fn := style.ListItem.Render
+		var str string
 		if index == m.Index() {
-			fn = func(s ...string) string {
-				return style.ListSelected.Render(s...)
-			}
+			spStyle := style.ListSelected.Render(deviceItem.StateSphere())
+			lbStyle := style.ListSelected.BorderLeft(false).Render(deviceItem.Label)
+			str = fmt.Sprintf("%s%s", spStyle, lbStyle)
+		} else {
+			spStyle := style.ListItem.Render(deviceItem.StateSphere())
+			lbStyle := style.ListItem.PaddingLeft(0).Render(deviceItem.Label)
+			str = fmt.Sprintf("%s %s", spStyle, lbStyle)
 		}
 
-		fmt.Fprint(w, fn(str))
+		fmt.Fprint(w, str)
 	}
 	d := hlist.NewDelegate(renderFunc, hlist.SetDelegateSpacing(1))
 
@@ -98,5 +104,5 @@ func NewList(devices []client.Device) list.Model {
 
 func rgbColorBlock(r, g, b int, text string) string {
 	color := color.RGBToLipglossColor(r, g, b)
-	return lipgloss.NewStyle().Foreground(color).Padding(0, 1, 0, 0).Bold(true).Render(text)
+	return lipgloss.NewStyle().Foreground(color).Padding(0, 1, 0, 0).Render(text)
 }
