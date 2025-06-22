@@ -11,7 +11,6 @@ import (
 	"github.com/alessio-palumbo/hikari/cmd/hikari-cli/style"
 	"github.com/alessio-palumbo/hikari/pkg/client"
 	"github.com/charmbracelet/bubbles/list"
-	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -49,7 +48,6 @@ type model struct {
 	commandList         list.Model
 	selectedCommand     command.Item
 	paramList           list.Model
-	editInput           textinput.Model
 	selectedParamIndex  int
 	errMessage          string
 	lastUpdate          time.Time
@@ -61,12 +59,6 @@ func initialModel() model {
 		log.Fatal(err)
 	}
 
-	ti := textinput.New()
-	ti.Placeholder = "Enter value"
-	ti.Width = 20
-	ti.CharLimit = 5
-	ti.Focus()
-
 	return model{
 		state:               stateDeviceList,
 		deviceManager:       dm,
@@ -74,7 +66,6 @@ func initialModel() model {
 		deviceList:          device.NewList(dm.GetDevices()),
 		commandList:         command.NewList(),
 		lastUpdate:          time.Now(),
-		editInput:           ti,
 	}
 }
 
@@ -160,19 +151,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.paramList, cmd = m.paramList.Update(msg)
 				return m, cmd
 			}
+
+			paramIndex := m.paramList.GlobalIndex()
+			paramItem := m.paramList.Items()[paramIndex].(command.ParamItem)
+
 			switch msg.String() {
 			case "enter":
-				m.selectedParamIndex = m.paramList.Index()
-				paramItem := m.paramList.Items()[m.selectedParamIndex].(command.ParamItem)
-
-				m.editInput.SetValue(paramItem.GetValue())
-				m.editInput.Placeholder = paramItem.Description
-				m.editInput.CursorEnd()
-				m.editInput.Focus()
-
+				paramItem.SetEdit(true)
+				m.paramList.SetItem(paramIndex, paramItem)
 				m.state = stateParamEdit
 				return m, nil
-
 			case "a":
 				message, err := m.selectedCommand.Handler(command.ParamItemsFromModel(m.paramList)...)
 				if err != nil {
@@ -182,32 +170,41 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.deviceManager.Send(m.selectedDevice.Address, message)
 				m.state = stateCommandList
 				return m, nil
-
 			case "esc", "ctrl+b", "backspace":
+				paramItem.SetEdit(false)
+				m.paramList.SetItem(paramIndex, paramItem)
 				m.state = stateCommandList
 				return m, nil
 			}
 			m.paramList, cmd = m.paramList.Update(msg)
 
 		case stateParamEdit:
+			paramIndex := m.paramList.GlobalIndex()
+			paramItem := m.paramList.Items()[paramIndex].(command.ParamItem)
+
 			switch msg.String() {
 			case "enter":
-				val := m.editInput.Value()
-				paramItem := m.paramList.Items()[m.paramList.Index()].(command.ParamItem)
-				if err := paramItem.ValidateValue(val); err != nil {
+				val := paramItem.Input.Value()
+				if err := paramItem.SetValue(val); err != nil {
 					m.errMessage = err.Error()
 					return m, nil
 				}
 				m.errMessage = ""
-				paramItem.SetValue(val)
+				paramItem.SetEdit(false)
+				m.paramList.SetItem(paramIndex, paramItem)
 				m.state = stateParamList
 				return m, nil
-
 			case "esc", "ctrl+b":
+				m.errMessage = ""
+				paramItem.SetEdit(false)
+				m.paramList.SetItem(paramIndex, paramItem)
 				m.state = stateParamList
 				return m, nil
 			}
-			m.editInput, cmd = m.editInput.Update(msg)
+
+			paramItem.Input, cmd = paramItem.Input.Update(msg)
+			m.paramList.SetItem(paramIndex, paramItem)
+			return m, cmd
 		case stateError:
 		}
 
@@ -329,23 +326,14 @@ func (m model) View() string {
 			style.Help.Render("↑/↓: navigate • enter: select • esc: back • q: quit"),
 		)
 
-	case stateParamList:
-		return fmt.Sprintf("%s\n\n%s\n\n%s\n%s\n\n%s",
+	case stateParamList, stateParamEdit:
+		return fmt.Sprintf("%s\n\n%s\n\n%s\n%s%s\n\n%s",
 			title,
 			m.selectedDevice.Title(),
 			m.selectedCommand.Title(),
 			m.paramList.View(),
-			style.Help.Render("↑/↓: navigate • enter: edit • esc: back • q: quit"),
-		)
-	case stateParamEdit:
-		return fmt.Sprintf(
-			"%s\n\n%s\n\n%s\n\n%s%s\n\n%s",
-			title,
-			m.selectedDevice.Title(),
-			m.paramList.Items()[m.paramList.Index()].(command.ParamItem).Title(),
-			m.editInput.View(),
 			m.renderError(),
-			style.Help.Render("↑/↓: navigate • enter: set • esc: back • q: quit"),
+			style.Help.Render("↑/↓: navigate • enter: edit • a: run • esc: back • q: quit"),
 		)
 	}
 
