@@ -6,23 +6,10 @@ import (
 
 	"github.com/alessio-palumbo/hikari/cmd/hikari-cli/color"
 	hlist "github.com/alessio-palumbo/hikari/cmd/hikari-cli/list"
+	"github.com/alessio-palumbo/hikari/cmd/hikari-cli/style"
 	"github.com/alessio-palumbo/hikari/pkg/client"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/lipgloss"
-)
-
-var (
-	sstyle = lipgloss.NewStyle().
-		Bold(true).
-		Border(lipgloss.NormalBorder(), false, false, false, true).
-		BorderForeground(lipgloss.AdaptiveColor{Light: "#F793FF", Dark: "#AD58B4"}).
-		Foreground(lipgloss.AdaptiveColor{Light: "#EE6FF8", Dark: "#EE6FF8"}).
-		Padding(0, 0, 0, 1)
-
-	nstyle = lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.AdaptiveColor{Light: "#1a1a1a", Dark: "#dddddd"}).
-		Padding(0, 0, 0, 1)
 )
 
 // Item implements the list.Item interface.
@@ -92,10 +79,10 @@ func NewList(devices []client.Device) list.Model {
 
 		str := deviceItem.Title()
 
-		fn := nstyle.Render
+		fn := style.ListItem.Render
 		if index == m.Index() {
 			fn = func(s ...string) string {
-				return sstyle.Render(s...)
+				return style.ListSelected.Render(s...)
 			}
 		}
 

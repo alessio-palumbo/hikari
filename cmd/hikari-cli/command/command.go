@@ -4,25 +4,13 @@ import (
 	"fmt"
 	"io"
 	"strconv"
-	"strings"
 	"time"
 
 	hlist "github.com/alessio-palumbo/hikari/cmd/hikari-cli/list"
+	"github.com/alessio-palumbo/hikari/cmd/hikari-cli/style"
 	"github.com/alessio-palumbo/hikari/internal/protocol"
 	"github.com/alessio-palumbo/hikari/pkg/client"
 	"github.com/charmbracelet/bubbles/list"
-	"github.com/charmbracelet/lipgloss"
-)
-
-var (
-	itemStyle         = lipgloss.NewStyle().PaddingLeft(4)
-	selectedItemStyle = lipgloss.NewStyle().PaddingLeft(2).Foreground(lipgloss.Color("170"))
-	titleStyle        = lipgloss.NewStyle().MarginLeft(2).
-				Foreground(lipgloss.Color("#FFFDF5")).
-				Background(lipgloss.Color("#25A065"))
-	paginationStyle = list.DefaultStyles().PaginationStyle.PaddingLeft(4)
-	// helpStyle         = list.DefaultStyles().HelpStyle.PaddingLeft(4).PaddingBottom(1)
-	quitTextStyle = lipgloss.NewStyle().Margin(1, 0, 2, 4)
 )
 
 var commands = []Command{
@@ -131,7 +119,7 @@ func (i Item) FilterValue() string {
 }
 
 func (i Item) Title() string {
-	return titleStyle.Render(i.Name)
+	return style.ListTitle.Render(i.Name)
 }
 
 func (i Item) NewParams() list.Model {
@@ -147,10 +135,10 @@ func NewList() list.Model {
 
 		str := fmt.Sprintf("%s - %s", item.Name, item.Description)
 
-		fn := itemStyle.Render
+		fn := style.ListItem.Render
 		if index == m.Index() {
 			fn = func(s ...string) string {
-				return selectedItemStyle.Render("> " + strings.Join(s, " "))
+				return style.ListSelected.Render(s...)
 			}
 		}
 

@@ -3,10 +3,10 @@ package command
 import (
 	"fmt"
 	"io"
-	"strings"
 	"time"
 
 	hlist "github.com/alessio-palumbo/hikari/cmd/hikari-cli/list"
+	"github.com/alessio-palumbo/hikari/cmd/hikari-cli/style"
 	"github.com/charmbracelet/bubbles/list"
 )
 
@@ -67,10 +67,10 @@ func newParamsList(params []paramType) list.Model {
 		}
 		str := fmt.Sprintf("%s - %s", name, item.Description)
 
-		fn := itemStyle.Render
+		fn := style.ListItem.Render
 		if index == m.Index() {
 			fn = func(s ...string) string {
-				return selectedItemStyle.Render("> " + strings.Join(s, " "))
+				return style.ListSelected.Render(s...)
 			}
 		}
 

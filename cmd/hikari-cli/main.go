@@ -8,6 +8,7 @@ import (
 
 	"github.com/alessio-palumbo/hikari/cmd/hikari-cli/command"
 	"github.com/alessio-palumbo/hikari/cmd/hikari-cli/device"
+	"github.com/alessio-palumbo/hikari/cmd/hikari-cli/style"
 	"github.com/alessio-palumbo/hikari/pkg/client"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -21,29 +22,6 @@ const (
 
 var (
 	filterExcludedBindings = []string{"enter", "q"}
-
-	titleStyle = lipgloss.NewStyle().
-			Background(lipgloss.Color("62")).
-			Foreground(lipgloss.Color("230")).
-			Padding(0, 1)
-		// Foreground(lipgloss.Color("#FFFDF5")).
-		// Background(lipgloss.Color("#25A065")).
-		// Padding(0, 1)
-
-	statusStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#888888"))
-
-	helpStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#626262"))
-
-	selectedStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#FFFDF5")).
-			Background(lipgloss.Color("#F25D94")).
-			Padding(0, 1)
-
-	responseStyle = lipgloss.NewStyle().
-			BorderForeground(lipgloss.Color("#874BFD")).
-			Padding(1)
 )
 
 type state int
@@ -322,15 +300,15 @@ func (m *model) updateDeviceList(devices []client.Device) {
 }
 
 func (m model) View() string {
-	title := titleStyle.Render("Hikari")
+	title := style.Title.Render("Hikari")
 	switch m.state {
 	case stateDeviceList:
 		deviceView := fmt.Sprintf("%s\n%s\n%s\n%s",
 			title,
 			m.deviceList.View(),
-			statusStyle.Render(fmt.Sprintf("Last updated: %s | Devices: %d",
+			style.Status.Render(fmt.Sprintf("Last updated: %s | Devices: %d",
 				m.lastUpdate.Format("15:04:05"), len(m.deviceList.Items()))),
-			helpStyle.Render("↑/↓: navigate • enter: select device • q: quit| devices"),
+			style.Help.Render("↑/↓: navigate • enter: select device • q: quit| devices"),
 		)
 		var modal string
 		if deviceItem, ok := m.deviceList.SelectedItem().(device.Item); ok && m.showDeviceInfo {
@@ -348,7 +326,7 @@ func (m model) View() string {
 			title,
 			m.selectedDevice.Title(),
 			m.commandList.View(),
-			helpStyle.Render("↑/↓: navigate • enter: select • esc: back • q: quit"),
+			style.Help.Render("↑/↓: navigate • enter: select • esc: back • q: quit"),
 		)
 
 	case stateParamList:
@@ -357,7 +335,7 @@ func (m model) View() string {
 			m.selectedDevice.Title(),
 			m.selectedCommand.Title(),
 			m.paramList.View(),
-			helpStyle.Render("↑/↓: navigate • enter: edit • esc: back • q: quit"),
+			style.Help.Render("↑/↓: navigate • enter: edit • esc: back • q: quit"),
 		)
 	case stateParamEdit:
 		return fmt.Sprintf(
@@ -366,7 +344,7 @@ func (m model) View() string {
 			m.selectedCommand.ParamTypes[m.selectedParamIndex].Name,
 			m.editInput.View(),
 			m.renderError(),
-			helpStyle.Render("↑/↓: navigate • enter: set • esc: back • q: quit"),
+			style.Help.Render("↑/↓: navigate • enter: set • esc: back • q: quit"),
 		)
 	}
 
