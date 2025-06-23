@@ -10,12 +10,22 @@ import (
 	"github.com/alessio-palumbo/hikari/internal/protocol"
 )
 
-type deviceType string
+type deviceType int
 
 const (
-	DeviceTypeLight  deviceType = "light"
-	DeviceTypeSwitch deviceType = "switch"
+	DeviceTypeLight deviceType = iota
+	DeviceTypeSwitch
 )
+
+func (d deviceType) String() string {
+	switch d {
+	case DeviceTypeLight:
+		return "light"
+	case DeviceTypeSwitch:
+		return "switch"
+	}
+	return ""
+}
 
 type lightType string
 
@@ -69,6 +79,9 @@ func DeviceStateMessages() []*protocol.Message {
 		protocol.NewMessage(&packets.DeviceGetVersion{}),
 		protocol.NewMessage(&packets.LightGet{}),
 		protocol.NewMessage(&packets.DeviceGetHostFirmware{}),
+		protocol.NewMessage(&packets.DeviceGetLocation{}),
+		protocol.NewMessage(&packets.DeviceGetGroup{}),
+		protocol.NewMessage(&packets.ButtonGet{}),
 	}
 }
 

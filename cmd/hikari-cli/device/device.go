@@ -20,10 +20,10 @@ func (i Item) FilterValue() string {
 }
 
 func (i Item) StateSphere() string {
-	if !i.PoweredOn {
-		return "⚫"
-	} else if i.Type == client.DeviceTypeSwitch {
+	if i.Type == client.DeviceTypeSwitch {
 		return "🔘"
+	} else if !i.PoweredOn {
+		return "⚫"
 	}
 
 	var r, g, b int
@@ -41,11 +41,18 @@ func (i Item) Title() string {
 }
 
 func (i Item) Info() string {
-	content := fmt.Sprintf("%s\n\nSerial: %s\nIP: %s\nFirmware: %s",
+	var switchLabel string
+	if i.Type == client.DeviceTypeSwitch {
+		switchLabel = " - (Switch)"
+	}
+	content := fmt.Sprintf("%s%s\n\nSerial: %s\nIP: %s\nFirmware: %s\nLocation: %s\nGroup: %s",
 		i.Label,
+		switchLabel,
 		i.Serial,
 		i.Address.IP,
 		i.FirmwareVersion,
+		i.Location,
+		i.Group,
 	)
 
 	if i.Type != client.DeviceTypeSwitch {

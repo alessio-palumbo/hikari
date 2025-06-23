@@ -54,7 +54,7 @@ func (s *DeviceSession) Send(msgs ...*protocol.Message) error {
 		msg.SetTarget(s.device.Serial)
 		msg.SetSequence(s.nextSeq())
 		if err := s.sender.Send(s.device.Address, msg); err != nil {
-			return fmt.Errorf("Failed to send message to device %s: %v\n", s.device.Serial, err)
+			return fmt.Errorf("failed to send message to device %s: %v", s.device.Serial, err)
 		}
 	}
 	return nil
@@ -102,6 +102,14 @@ func (s *DeviceSession) recvloop() {
 				s.device.ProductID = p.Product
 			case *packets.DeviceStateHostFirmware:
 				s.device.FirmwareVersion = fmt.Sprintf("%d.%d", p.VersionMajor, p.VersionMinor)
+			case *packets.DeviceStateLocation:
+				s.device.Location = ParseLabel(p.Label)
+			case *packets.DeviceStateGroup:
+				s.device.Group = ParseLabel(p.Label)
+			case *packets.ButtonState:
+				if p.ButtonsCount > 0 {
+					s.device.Type = DeviceTypeSwitch
+				}
 			case *packets.DeviceStateService, *packets.DeviceStateUnhandled: // Ignore these messages
 			default:
 				fmt.Println("Unhandled message type:", p.PayloadType())
