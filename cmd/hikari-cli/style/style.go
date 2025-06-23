@@ -3,24 +3,24 @@ package style
 import "github.com/charmbracelet/lipgloss"
 
 var (
-	SelectedColor   = lipgloss.AdaptiveColor{Light: "#ee6ff8", Dark: "#ee6ff8"}
-	SelectedBorder  = lipgloss.AdaptiveColor{Light: "#f793ff", Dark: "#ad58b4"}
-	ListColor       = lipgloss.AdaptiveColor{Light: "#1a1a1a", Dark: "#dddddd"}
-	StatusColor     = lipgloss.Color("#888888")
-	HelpColor       = lipgloss.Color("#626262")
-	TitleBackground = lipgloss.Color("#5f5fd7")
-	TitleColor      = lipgloss.Color("#ffffd5")
-	ListTitleColor  = lipgloss.Color("#f25d94")
-	TODO1Color      = lipgloss.Color("#874bfd")
-	TODO3Color      = lipgloss.Color("#25a065")
+	SelectedTextColor   = lipgloss.AdaptiveColor{Light: "#ee6ff8", Dark: "#ee6ff8"}
+	SelectedBorderColor = lipgloss.AdaptiveColor{Light: "#f793ff", Dark: "#ad58b4"}
+	ListColor           = lipgloss.AdaptiveColor{Light: "#1a1a1a", Dark: "#dddddd"}
+	StatusColor         = lipgloss.Color("#888888")
+	HelpColor           = lipgloss.Color("#626262")
+	TitleBackground     = lipgloss.Color("#5f5fd7")
+	TitleColor          = lipgloss.Color("#ffffd5")
+	ListTitleColor      = lipgloss.Color("#aa38c7")
+	TODO1Color          = lipgloss.Color("#874bfd")
+	TODO2Color          = lipgloss.Color("#ee6ff8")
 )
 
 var (
 	ListSelected = lipgloss.NewStyle().
 			Bold(true).
 			Border(lipgloss.Border{Left: "┃"}, false, false, false, true).
-			BorderForeground(SelectedBorder).
-			Foreground(SelectedColor).
+			BorderForeground(SelectedBorderColor).
+			Foreground(SelectedTextColor).
 			PaddingLeft(1)
 
 	ListItem = lipgloss.NewStyle().
@@ -38,6 +38,17 @@ var (
 		Padding(0, 1)
 
 	ListTitle = lipgloss.NewStyle().
-			MarginLeft(2).
-			Underline(true)
+			Background(ListTitleColor).
+			Foreground(TitleColor).
+			Padding(0, 1).
+			MarginLeft(2)
+
+	SelectedDevice = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(ListColor)
+
+	SelectedBorder = lipgloss.NewStyle().
+			Border(lipgloss.NormalBorder(), false, false, true, false).
+			BorderForeground(SelectedBorderColor).
+			MarginLeft(2)
 )

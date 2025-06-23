@@ -37,7 +37,7 @@ func (i Item) StateSphere() string {
 }
 
 func (i Item) Title() string {
-	return fmt.Sprintf("%s %s", i.StateSphere(), i.Label)
+	return style.SelectedBorder.Render(fmt.Sprintf("%s %s", i.StateSphere(), style.SelectedDevice.Render(i.Label)))
 }
 
 func (i Item) Info() string {

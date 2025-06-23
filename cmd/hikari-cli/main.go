@@ -333,7 +333,7 @@ func (m model) View() string {
 			m.selectedCommand.Title(),
 			m.paramList.View(),
 			m.renderError(),
-			style.Help.Render("↑/↓: navigate • enter: edit • a: run • esc: back • q: quit"),
+			style.Help.Render("↑/↓: navigate • enter: edit • a: apply • esc: back • q: quit"),
 		)
 	}
 
