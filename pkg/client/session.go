@@ -10,7 +10,8 @@ import (
 )
 
 const (
-	defaultSessionStatePeriod = 10 * time.Second
+	highFrequencyStateRefreshPeriod = 10 * time.Second
+	lowFrequencyStateRefreshPeriod  = 2 * time.Minute
 )
 
 // sender is an interface that defines the Send method for sending messages.
@@ -70,15 +71,24 @@ func (s *DeviceSession) nextSeq() uint8 {
 
 func (s *DeviceSession) run() {
 	s.Send(DeviceStateMessages()...)
-	ticker := time.NewTicker(defaultSessionStatePeriod)
+	hfTicker := time.NewTicker(highFrequencyStateRefreshPeriod)
+	lfTicker := time.NewTicker(lowFrequencyStateRefreshPeriod)
 
 	for {
 		select {
 		case <-s.done:
 			return
-		case <-ticker.C:
-			s.Send(protocol.NewMessage(&packets.DeviceGetVersion{}), protocol.NewMessage(&packets.DeviceGetLabel{}), protocol.NewMessage(&packets.LightGet{}))
-			ticker.Reset(defaultSessionStatePeriod)
+		case <-hfTicker.C:
+			s.Send(protocol.NewMessage(&packets.LightGet{}))
+			hfTicker.Reset(highFrequencyStateRefreshPeriod)
+		case <-lfTicker.C:
+			s.Send(
+				protocol.NewMessage(&packets.DeviceGetLabel{}),
+				protocol.NewMessage(&packets.DeviceGetHostFirmware{}),
+				protocol.NewMessage(&packets.DeviceGetLocation{}),
+				protocol.NewMessage(&packets.DeviceGetGroup{}),
+			)
+			lfTicker.Reset(highFrequencyStateRefreshPeriod)
 		}
 	}
 }
