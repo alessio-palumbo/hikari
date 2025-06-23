@@ -11,12 +11,14 @@ import (
 	"github.com/alessio-palumbo/hikari/cmd/hikari-cli/style"
 	"github.com/alessio-palumbo/hikari/pkg/client"
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
 const (
 	defaultDeviceRefreshPeriod = 2 * time.Second
+	defaultSendMessageSpinner  = 300 * time.Millisecond
 )
 
 var (
@@ -36,21 +38,23 @@ const (
 // Bubble Tea messages
 type deviceSelectedMsg client.Device
 type deviceUpdateMsg []client.Device
+type msgSendDone struct{}
 type tickMsg time.Time
 
 type model struct {
-	state               state
-	deviceManager       *client.DeviceManager
-	deviceRefreshPeriod time.Duration
-	deviceList          list.Model
-	selectedDevice      device.Item
-	showDeviceInfo      bool
-	commandList         list.Model
-	selectedCommand     command.Item
-	paramList           list.Model
-	selectedParamIndex  int
-	errMessage          string
-	lastUpdate          time.Time
+	state              state
+	deviceManager      *client.DeviceManager
+	deviceList         list.Model
+	selectedDevice     device.Item
+	showDeviceInfo     bool
+	commandList        list.Model
+	selectedCommand    command.Item
+	paramList          list.Model
+	selectedParamIndex int
+	errMessage         string
+	lastUpdate         time.Time
+	spinner            spinner.Model
+	sending            bool
 }
 
 func initialModel() model {
@@ -58,20 +62,24 @@ func initialModel() model {
 	if err != nil {
 		log.Fatal(err)
 	}
+	s := spinner.New()
+	s.Spinner = spinner.Points
+	s.Style = style.Spinner
 
 	return model{
-		state:               stateDeviceList,
-		deviceManager:       dm,
-		deviceRefreshPeriod: defaultDeviceRefreshPeriod,
-		deviceList:          device.NewList(dm.GetDevices()),
-		commandList:         command.NewList(),
-		lastUpdate:          time.Now(),
+		state:         stateDeviceList,
+		deviceManager: dm,
+		deviceList:    device.NewList(dm.GetDevices()),
+		commandList:   command.NewList(),
+		lastUpdate:    time.Now(),
+		spinner:       s,
 	}
 }
 
 func (m model) Init() tea.Cmd {
 	return tea.Batch(
 		m.tick(),
+		m.spinner.Tick,
 	)
 }
 
@@ -132,6 +140,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					case "power_on", "power_off":
 						message, _ := m.selectedCommand.Handler()
 						m.deviceManager.Send(m.selectedDevice.Address, message)
+						return m.sendMessageSpinner()
 					case "set_color", "set_brightness":
 						m.paramList = m.selectedCommand.NewParams()
 						m.state = stateParamList
@@ -168,8 +177,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, nil
 				}
 				m.deviceManager.Send(m.selectedDevice.Address, message)
-				m.state = stateCommandList
-				return m, nil
+				return m.sendMessageSpinner()
 			case "esc", "ctrl+b", "backspace":
 				paramItem.SetEdit(false)
 				m.paramList.SetItem(paramIndex, paramItem)
@@ -223,6 +231,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.lastUpdate = time.Now()
 		return m, nil
 
+	case msgSendDone:
+		m.sending = false
+		m.state = stateCommandList
+		return m, nil
+
 	case tickMsg:
 		// Only refresh if we're in the device list view or it's been a while
 		switch {
@@ -233,6 +246,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		default:
 			return m, m.tick()
 		}
+
+	case spinner.TickMsg:
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
 	}
 
 	return m, cmd
@@ -248,9 +265,19 @@ func (m model) refreshDevices() tea.Cmd {
 
 // Command for periodic updates
 func (m model) tick() tea.Cmd {
-	return tea.Tick(m.deviceRefreshPeriod, func(t time.Time) tea.Msg {
+	return tea.Tick(defaultDeviceRefreshPeriod, func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
+}
+
+func (m model) sendMessageSpinner() (model, tea.Cmd) {
+	m.sending = true
+	return m, tea.Batch(
+		m.spinner.Tick,
+		tea.Tick(defaultSendMessageSpinner, func(time.Time) tea.Msg {
+			return msgSendDone{}
+		}),
+	)
 }
 
 // Update the device list while preserving selection
@@ -302,7 +329,7 @@ func (m model) View() string {
 	case stateDeviceList:
 		deviceView := fmt.Sprintf("%s\n%s\n%s\n%s",
 			title,
-			m.deviceList.View(),
+			m.renderStartupSpinnerOrDevices(),
 			style.Status.Render(fmt.Sprintf("Last updated: %s | Devices: %d",
 				m.lastUpdate.Format("15:04:05"), len(m.deviceList.Items()))),
 			style.Help.Render("↑/↓: navigate • enter: select device • q: quit| devices"),
@@ -319,20 +346,22 @@ func (m model) View() string {
 		return deviceView
 
 	case stateCommandList:
-		return fmt.Sprintf("%s\n\n%s\n%s\n\n%s",
+		return fmt.Sprintf("%s\n\n%s\n%s%s\n\n%s",
 			title,
 			m.selectedDevice.Title(),
 			m.commandList.View(),
+			m.renderSpinner(),
 			style.Help.Render("↑/↓: navigate • enter: select • esc: back • q: quit"),
 		)
 
 	case stateParamList, stateParamEdit:
-		return fmt.Sprintf("%s\n\n%s\n\n%s\n%s%s\n\n%s",
+		return fmt.Sprintf("%s\n\n%s\n\n%s\n%s%s%s\n\n%s",
 			title,
 			m.selectedDevice.Title(),
 			m.selectedCommand.Title(),
 			m.paramList.View(),
 			m.renderError(),
+			m.renderSpinner(),
 			style.Help.Render("↑/↓: navigate • enter: edit • a: apply • esc: back • q: quit"),
 		)
 	}
@@ -345,6 +374,20 @@ func (m model) renderError() string {
 		return fmt.Sprintf("\n\n❌ Error: %s", m.errMessage)
 	}
 	return ""
+}
+
+func (m model) renderSpinner() string {
+	if m.sending {
+		return fmt.Sprint("\n\nSending... ", m.spinner.View())
+	}
+	return ""
+}
+
+func (m model) renderStartupSpinnerOrDevices() string {
+	if len(m.deviceList.Items()) == 0 {
+		return fmt.Sprintf("\n\nDiscovering %s\n\n", m.spinner.View())
+	}
+	return m.deviceList.View()
 }
 
 func main() {

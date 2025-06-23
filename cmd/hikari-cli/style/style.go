@@ -32,6 +32,10 @@ var (
 
 	Help = lipgloss.NewStyle().Foreground(HelpColor)
 
+	Spinner = lipgloss.NewStyle().
+		Bold(true).
+		Foreground(TitleBackground)
+
 	Title = lipgloss.NewStyle().
 		Background(TitleBackground).
 		Foreground(TitleColor).
