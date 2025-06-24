@@ -16,7 +16,7 @@ import (
 type Item client.Device
 
 func (i Item) FilterValue() string {
-	return i.Label
+	return i.Label + " " + i.Location + " " + i.Group
 }
 
 func (i Item) StateSphere() string {
