@@ -1,6 +1,7 @@
 package client
 
 import (
+	"fmt"
 	"net"
 	"time"
 
@@ -16,9 +17,10 @@ const (
 )
 
 type Client struct {
-	conn     *net.UDPConn
-	source   uint32
-	deadline time.Duration
+	conn          *net.UDPConn
+	source        uint32
+	deadline      time.Duration
+	broadcastAddr *net.UDPAddr
 }
 
 type Config struct {
@@ -33,7 +35,11 @@ type HandlerFunc func(*protocol.Message, *net.UDPAddr)
 // If cfg is nil, default values will be used for source and deadline.
 func NewClient(cfg *Config) (*Client, error) {
 	addr := &net.UDPAddr{Port: 0, IP: net.IPv4zero}
-	conn, err := net.ListenUDP("udp4", addr)
+	conn, err := net.ListenUDP("udp", addr)
+	if err != nil {
+		return nil, err
+	}
+	bAddr, err := resolveBroadcastUDPAddress(lifxPort)
 	if err != nil {
 		return nil, err
 	}
@@ -50,9 +56,10 @@ func NewClient(cfg *Config) (*Client, error) {
 	}
 
 	return &Client{
-		conn:     conn,
-		source:   source,
-		deadline: deadline,
+		conn:          conn,
+		source:        source,
+		deadline:      deadline,
+		broadcastAddr: bAddr,
 	}, nil
 }
 
@@ -76,11 +83,7 @@ func (c *Client) Send(dst *net.UDPAddr, msg *protocol.Message) error {
 // SendBroadcast sends a message to the broadcast address for LIFX devices.
 func (c *Client) SendBroadcast(msg *protocol.Message) error {
 	msg.SetTarget(protocol.TargetBroadcast)
-	broadcastAddr := &net.UDPAddr{
-		IP:   net.IPv4bcast,
-		Port: lifxPort,
-	}
-	return c.Send(broadcastAddr, msg)
+	return c.Send(c.broadcastAddr, msg)
 }
 
 // Receive reads UDP messages until the deadline is hit or recvOne is true and a valid message has been received.
@@ -115,4 +118,43 @@ func (c *Client) Receive(timeout time.Duration, recvOne bool, handler HandlerFun
 	}
 
 	return nil
+}
+func resolveBroadcastUDPAddress(port int) (*net.UDPAddr, error) {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return nil, fmt.Errorf("could not list interfaces: %w", err)
+	}
+
+	for _, iface := range ifaces {
+		// Skip interfaces that are down or loopback
+		if iface.Flags&(net.FlagUp|net.FlagBroadcast) != (net.FlagUp | net.FlagBroadcast) {
+			continue
+		}
+
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue // skip bad interface
+		}
+
+		for _, addr := range addrs {
+			ipnet, ok := addr.(*net.IPNet)
+			if !ok || ipnet.IP.To4() == nil {
+				continue // skip non-IPv4 or invalid
+			}
+
+			ip := ipnet.IP.To4()
+			mask := ipnet.Mask
+			broadcast := make(net.IP, 4)
+			for i := range 4 {
+				broadcast[i] = ip[i] | ^mask[i]
+			}
+
+			return &net.UDPAddr{
+				IP:   broadcast,
+				Port: port,
+			}, nil
+		}
+	}
+
+	return nil, fmt.Errorf("no suitable broadcast interface found")
 }
