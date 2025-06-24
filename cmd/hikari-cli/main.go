@@ -112,17 +112,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if deviceItem, ok := m.deviceList.SelectedItem().(device.Item); ok {
 					m.selectedDevice = deviceItem
 					m.state = stateCommandList
-					m.deviceList.ResetFilter()
 					return m, nil
 				}
 			case "q", "ctrl+c":
 				return m, tea.Quit
 			case "i":
-				if deviceItem, ok := m.deviceList.SelectedItem().(device.Item); ok {
-					m.selectedDevice = deviceItem
-					m.showDeviceInfo = !m.showDeviceInfo
-					return m, nil
-				}
+				m.showDeviceInfo = !m.showDeviceInfo
 			}
 			m.deviceList, cmd = m.deviceList.Update(msg)
 
@@ -147,6 +142,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						return m, nil
 					}
 				}
+			case "i":
+				m.showDeviceInfo = !m.showDeviceInfo
 			case "esc", "ctrl+b":
 				m.state = stateDeviceList
 				return m, nil
@@ -227,9 +224,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case deviceUpdateMsg:
-		m.updateDeviceList([]client.Device(msg))
+		cmd := m.updateDeviceList([]client.Device(msg))
 		m.lastUpdate = time.Now()
-		return m, nil
+		return m, cmd
 
 	case msgSendDone:
 		m.sending = false
@@ -237,11 +234,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tickMsg:
-		// Only refresh if we're in the device list view or it's been a while
 		switch {
-		case m.state == stateDeviceList && m.deviceList.FilterState() == list.Unfiltered:
+		case m.state == stateDeviceList:
 			return m, tea.Batch(m.refreshDevices(), m.tick())
-		case m.state != stateDeviceList && time.Since(m.lastUpdate) > 5*time.Second:
+		case time.Since(m.lastUpdate) > 5*time.Second:
 			return m, tea.Batch(m.refreshDevices(), m.tick())
 		default:
 			return m, m.tick()
@@ -280,79 +276,46 @@ func (m model) sendMessageSpinner() (model, tea.Cmd) {
 	)
 }
 
-// Update the device list while preserving selection
-func (m *model) updateDeviceList(devices []client.Device) {
+// updateDeviceList updates the list of devices and keeps the current selection.
+func (m *model) updateDeviceList(devices []client.Device) tea.Cmd {
 	// Remember current selection
-	var selectedIndex int
 	var selectedSerial client.Serial
 	if selectedItem, ok := m.deviceList.SelectedItem().(device.Item); ok {
-		selectedIndex = m.deviceList.Index()
 		selectedSerial = selectedItem.Serial
 	}
 
-	// Update list items
 	items := make([]list.Item, len(devices))
-	newSelectedIndex := 0
-	for i, d := range devices {
-		items[i] = device.Item(d)
-		// Try to maintain selection on the same device
+	for i := range devices {
+		d := device.Item(devices[i])
+		items[i] = d
 		if d.Serial == selectedSerial {
-			newSelectedIndex = i
+			m.selectedDevice = d
 		}
 	}
 
-	m.deviceList.SetItems(items)
-
-	// Restore selection if possible
-	if len(items) > 0 {
-		if newSelectedIndex < len(items) {
-			m.deviceList.Select(newSelectedIndex)
-		} else if selectedIndex < len(items) {
-			m.deviceList.Select(selectedIndex)
-		}
-	}
-
-	// Update selected device if it still exists
-	if !selectedSerial.IsNil() {
-		for _, d := range devices {
-			if d.Serial == selectedSerial {
-				m.selectedDevice = device.Item(d)
-				break
-			}
-		}
-	}
+	return m.deviceList.SetItems(items)
 }
 
 func (m model) View() string {
 	title := style.Title.Render("Hikari")
 	switch m.state {
 	case stateDeviceList:
-		deviceView := fmt.Sprintf("%s\n%s\n%s\n%s",
+		return m.withDeviceInfoView(fmt.Sprintf("%s\n%s\n%s\n%s",
 			title,
 			m.renderStartupSpinnerOrDevices(),
 			style.Status.Render(fmt.Sprintf("Last updated: %s | Devices: %d",
 				m.lastUpdate.Format("15:04:05"), len(m.deviceList.Items()))),
 			style.Help.Render("↑/↓: navigate • enter: select device • q: quit| devices"),
-		)
-		var modal string
-		if deviceItem, ok := m.deviceList.SelectedItem().(device.Item); ok && m.showDeviceInfo {
-			modal = "\n" + lipgloss.Place(20, m.deviceList.Height(),
-				lipgloss.Left, lipgloss.Top,
-				deviceItem.Info(),
-			)
-
-			return lipgloss.JoinHorizontal(lipgloss.Top, deviceView, modal)
-		}
-		return deviceView
+		))
 
 	case stateCommandList:
-		return fmt.Sprintf("%s\n\n%s\n%s%s\n\n%s",
+		return m.withDeviceInfoView(fmt.Sprintf("%s\n\n%s\n%s%s\n\n%s",
 			title,
 			m.selectedDevice.Title(),
 			m.commandList.View(),
 			m.renderSpinner(),
 			style.Help.Render("↑/↓: navigate • enter: select • esc: back • q: quit"),
-		)
+		))
 
 	case stateParamList, stateParamEdit:
 		return fmt.Sprintf("%s\n\n%s\n\n%s\n%s%s%s\n\n%s",
@@ -367,6 +330,18 @@ func (m model) View() string {
 	}
 
 	return ""
+}
+
+func (m model) withDeviceInfoView(view string) string {
+	if deviceItem, ok := m.deviceList.SelectedItem().(device.Item); ok && m.showDeviceInfo {
+		modal := "\n" + lipgloss.Place(20, m.deviceList.Height(),
+			lipgloss.Left, lipgloss.Top,
+			deviceItem.Info(),
+		)
+
+		return lipgloss.JoinHorizontal(lipgloss.Top, view, modal)
+	}
+	return view
 }
 
 func (m model) renderError() string {

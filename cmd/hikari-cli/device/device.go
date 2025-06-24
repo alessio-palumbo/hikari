@@ -41,15 +41,18 @@ func (i Item) Title() string {
 }
 
 func (i Item) Info() string {
-	var switchLabel string
-	if i.Type == client.DeviceTypeSwitch {
-		switchLabel = " - (Switch)"
+	title := i.Label
+	if title == "" {
+		title = i.Serial.String()
 	}
-	content := fmt.Sprintf("%s%s\n\nSerial: %s\nIP: %s\nFirmware: %s\nLocation: %s\nGroup: %s",
-		i.Label,
-		switchLabel,
+	if i.Type == client.DeviceTypeSwitch {
+		title += " - (Switch)"
+	}
+	content := fmt.Sprintf("%s\n\nSerial: %s\nIP: %s\nProductID: %d\nFirmware: %s\n\nLocation: %s\nGroup: %s",
+		style.ListSelected.BorderLeft(false).Render(title),
 		i.Serial,
 		i.Address.IP,
+		i.ProductID,
 		i.FirmwareVersion,
 		i.Location,
 		i.Group,
