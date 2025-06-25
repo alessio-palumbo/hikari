@@ -99,7 +99,7 @@ packets:
 	require.Equal(t, "reserved", spec.Unions[0].Fields[0].Type)
 	require.Equal(t, 16, spec.Unions[0].Fields[0].SizeBytes)
 	require.Equal(t, "Relays", spec.Unions[0].Fields[1].Name)
-	require.Equal(t, "fields.ButtonTargetRelays", spec.Unions[0].Fields[1].Type)
+	require.Equal(t, "ButtonTargetRelays", spec.Unions[0].Fields[1].Type)
 	require.Equal(t, 16, spec.Unions[0].Fields[1].SizeBytes)
 	require.Equal(t, "Group", spec.Unions[0].Fields[2].Name)
 	require.Equal(t, "[16]byte", spec.Unions[0].Fields[2].Type)
@@ -118,6 +118,6 @@ packets:
 	require.Equal(t, "uint8", spec.Packets[0].Fields[1].Type)
 	require.Equal(t, 1, spec.Packets[0].Fields[1].SizeBytes)
 	require.Equal(t, "Buttons", spec.Packets[0].Fields[2].Name)
-	require.Equal(t, "[4]fields.ButtonTargetRelays", spec.Packets[0].Fields[2].Type)
+	require.Equal(t, "[4]ButtonTargetRelays", spec.Packets[0].Fields[2].Type)
 	require.Equal(t, 64, spec.Packets[0].Fields[2].SizeBytes)
 }
