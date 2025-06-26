@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/alessio-palumbo/hikari/gen/protocol/packets"
+	"github.com/alessio-palumbo/hikari/gen/registry"
 	"github.com/alessio-palumbo/hikari/internal/protocol"
 )
 
@@ -15,6 +16,7 @@ type deviceType int
 const (
 	DeviceTypeLight deviceType = iota
 	DeviceTypeSwitch
+	DeviceTypeHybrid
 )
 
 func (d deviceType) String() string {
@@ -49,6 +51,7 @@ type Device struct {
 	Address         *net.UDPAddr
 	Serial          Serial
 	Label           string
+	RegistryName    string
 	ProductID       uint32
 	FirmwareVersion string
 	Type            deviceType
@@ -61,6 +64,25 @@ type Device struct {
 
 func NewDevice(address *net.UDPAddr, serial [8]byte) *Device {
 	return &Device{Address: address, Serial: Serial(serial)}
+}
+
+func (d *Device) SetProductID(pid uint32) {
+	p := registry.ProductsByPID[int(pid)]
+	d.ProductID = pid
+	d.RegistryName = p.Name
+
+	if p.Features.Relays {
+		d.Type = DeviceTypeSwitch
+	} else if p.Features.Buttons {
+		d.Type = DeviceTypeHybrid
+	}
+
+	if p.Features.Multizone {
+		d.LightType = LightTypeMultiZone
+	} else if p.Features.Matrix {
+		d.LightType = LightTypeMatrix
+	}
+
 }
 
 func SortDevices(devices []Device) {
@@ -81,7 +103,6 @@ func DeviceStateMessages() []*protocol.Message {
 		protocol.NewMessage(&packets.DeviceGetHostFirmware{}),
 		protocol.NewMessage(&packets.DeviceGetLocation{}),
 		protocol.NewMessage(&packets.DeviceGetGroup{}),
-		protocol.NewMessage(&packets.ButtonGet{}),
 	}
 }
 

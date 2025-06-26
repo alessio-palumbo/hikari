@@ -109,17 +109,13 @@ func (s *DeviceSession) recvloop() {
 				s.device.Color = NewColor(p.Color)
 				s.device.PoweredOn = p.Power > 0
 			case *packets.DeviceStateVersion:
-				s.device.ProductID = p.Product
+				s.device.SetProductID(p.Product)
 			case *packets.DeviceStateHostFirmware:
 				s.device.FirmwareVersion = fmt.Sprintf("%d.%d", p.VersionMajor, p.VersionMinor)
 			case *packets.DeviceStateLocation:
 				s.device.Location = ParseLabel(p.Label)
 			case *packets.DeviceStateGroup:
 				s.device.Group = ParseLabel(p.Label)
-			case *packets.ButtonState:
-				if p.ButtonsCount > 0 {
-					s.device.Type = DeviceTypeSwitch
-				}
 			case *packets.DeviceStateService, *packets.DeviceStateUnhandled: // Ignore these messages
 			default:
 				fmt.Println("Unhandled message type:", p.PayloadType())
