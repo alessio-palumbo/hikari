@@ -1,6 +1,7 @@
 package client
 
 import (
+	"encoding/binary"
 	"fmt"
 	"net"
 	"time"
@@ -12,8 +13,11 @@ const (
 	lifxPort       = 56700
 	recvBufferSize = 1024
 
-	defaultSource   uint32 = 0x00000000
-	defaultDeadline        = 2 * time.Second
+	defaultDeadline = 2 * time.Second
+)
+
+var (
+	defaultSource uint32 = binary.LittleEndian.Uint32([]byte{'H', 'I', 'K', 'A'})
 )
 
 type Client struct {
@@ -24,6 +28,8 @@ type Client struct {
 }
 
 type Config struct {
+	// Source must be greater than 1 or some devices on older firmware
+	// might either ignore (0) or broadcast the response (1).
 	Source   uint32
 	Deadline time.Duration
 }
