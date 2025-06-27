@@ -1,7 +1,6 @@
 package client
 
 import (
-	"encoding/binary"
 	"fmt"
 	"net"
 	"time"
@@ -13,11 +12,9 @@ const (
 	lifxPort       = 56700
 	recvBufferSize = 1024
 
-	defaultDeadline = 2 * time.Second
-)
-
-var (
-	defaultSource uint32 = binary.LittleEndian.Uint32([]byte{'H', 'I', 'K', 'A'})
+	// defaultSource is the utf-8 little endian representation of hikari's kanji "光".
+	defaultSource   uint32 = 0x008985e5
+	defaultDeadline        = 2 * time.Second
 )
 
 type Client struct {
@@ -60,6 +57,8 @@ func NewClient(cfg *Config) (*Client, error) {
 			deadline = cfg.Deadline
 		}
 	}
+
+	fmt.Printf("Started client with source '%s' and deadline '%d'\n", sourceString(source), deadline)
 
 	return &Client{
 		conn:          conn,
@@ -163,4 +162,15 @@ func resolveBroadcastUDPAddress(port int) (*net.UDPAddr, error) {
 	}
 
 	return nil, fmt.Errorf("no suitable broadcast interface found")
+}
+
+func sourceString(s uint32) string {
+	b := []byte{
+		byte(s & 0xFF),
+		byte((s >> 8) & 0xFF),
+		byte((s >> 16) & 0xFF),
+		byte((s >> 24) & 0xFF),
+	}
+
+	return string(b)
 }
