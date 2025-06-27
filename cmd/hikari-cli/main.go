@@ -22,7 +22,7 @@ const (
 )
 
 var (
-	filterExcludedBindings = []string{"enter", "q"}
+	filterExcludedBindings = []string{"enter", "q", "i", "e", "b"}
 )
 
 type state int
@@ -108,18 +108,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, cmd
 			}
 			switch msg.String() {
-			case "enter":
+			case "enter", "e":
 				if deviceItem, ok := m.deviceList.SelectedItem().(device.Item); ok {
 					m.selectedDevice = deviceItem
 					m.state = stateCommandList
-					return m, nil
 				}
-			case "q", "ctrl+c":
-				return m, tea.Quit
 			case "i":
 				m.showDeviceInfo = !m.showDeviceInfo
+			case "q", "ctrl+c":
+				return m, tea.Quit
+			default:
+				m.deviceList, cmd = m.deviceList.Update(msg)
 			}
-			m.deviceList, cmd = m.deviceList.Update(msg)
 
 		case stateCommandList:
 			if shouldSkipBindingOnFilter(m.commandList, msg.String()) {
@@ -127,7 +127,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, cmd
 			}
 			switch msg.String() {
-			case "enter":
+			case "enter", "e":
 				if commandItem, ok := m.commandList.SelectedItem().(command.Item); ok {
 					m.selectedCommand = commandItem
 
@@ -144,13 +144,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			case "i":
 				m.showDeviceInfo = !m.showDeviceInfo
-			case "esc", "ctrl+b":
+			case "esc", "b":
 				m.state = stateDeviceList
-				return m, nil
 			case "q", "ctrl+c":
 				return m, tea.Quit
+			default:
+				m.commandList, cmd = m.commandList.Update(msg)
 			}
-			m.commandList, cmd = m.commandList.Update(msg)
 
 		case stateParamList:
 			if shouldSkipBindingOnFilter(m.paramList, msg.String()) {
@@ -162,11 +162,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			paramItem := m.paramList.Items()[paramIndex].(command.ParamItem)
 
 			switch msg.String() {
-			case "enter":
+			case "enter", "e":
 				paramItem.SetEdit(true)
 				m.paramList.SetItem(paramIndex, paramItem)
 				m.state = stateParamEdit
-				return m, nil
 			case "a":
 				message, err := m.selectedCommand.Handler(command.ParamItemsFromModel(m.paramList)...)
 				if err != nil {
@@ -175,63 +174,54 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				m.deviceManager.Send(m.selectedDevice.Address, message)
 				return m.sendMessageSpinner()
-			case "esc", "ctrl+b", "backspace":
+			case "esc", "b":
 				paramItem.SetEdit(false)
 				m.paramList.SetItem(paramIndex, paramItem)
 				m.state = stateCommandList
-				return m, nil
+			case "q", "ctrl+c":
+				return m, tea.Quit
+			default:
+				m.paramList, cmd = m.paramList.Update(msg)
 			}
-			m.paramList, cmd = m.paramList.Update(msg)
 
 		case stateParamEdit:
 			paramIndex := m.paramList.GlobalIndex()
 			paramItem := m.paramList.Items()[paramIndex].(command.ParamItem)
 
 			switch msg.String() {
-			case "enter":
+			case "enter", "e":
 				val := paramItem.Input.Value()
 				if err := paramItem.SetValue(val); err != nil {
 					m.errMessage = err.Error()
 					return m, nil
 				}
+				fallthrough
+			case "esc", "b":
 				m.errMessage = ""
 				paramItem.SetEdit(false)
 				m.paramList.SetItem(paramIndex, paramItem)
 				m.state = stateParamList
-				return m, nil
-			case "esc", "ctrl+b":
-				m.errMessage = ""
-				paramItem.SetEdit(false)
+			default:
+				paramItem.Input, cmd = paramItem.Input.Update(msg)
 				m.paramList.SetItem(paramIndex, paramItem)
-				m.state = stateParamList
-				return m, nil
 			}
-
-			paramItem.Input, cmd = paramItem.Input.Update(msg)
-			m.paramList.SetItem(paramIndex, paramItem)
-			return m, cmd
-		case stateError:
 		}
 
 	case tea.WindowSizeMsg:
 		m.deviceList.SetWidth(msg.Width)
 		m.deviceList.SetHeight(msg.Height - 4)
-		return m, nil
 
 	case deviceSelectedMsg:
 		m.selectedDevice = device.Item(msg)
 		m.state = stateCommandList
-		return m, nil
 
 	case deviceUpdateMsg:
-		cmd := m.updateDeviceList([]client.Device(msg))
+		cmd = m.updateDeviceList([]client.Device(msg))
 		m.lastUpdate = time.Now()
-		return m, cmd
 
 	case msgSendDone:
 		m.sending = false
 		m.state = stateCommandList
-		return m, nil
 
 	case tickMsg:
 		switch {
@@ -245,7 +235,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case spinner.TickMsg:
 		m.spinner, cmd = m.spinner.Update(msg)
-		return m, cmd
 	}
 
 	return m, cmd
