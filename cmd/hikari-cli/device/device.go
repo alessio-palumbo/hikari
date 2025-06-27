@@ -45,14 +45,19 @@ func (i Item) Info() string {
 	if title == "" {
 		title = i.Serial.String()
 	}
+	var lightType string
 	if i.Type == client.DeviceTypeSwitch {
 		title += " - (Switch)"
+	} else {
+		lightType = fmt.Sprintf("LightType: %s\n", i.LightType)
 	}
-	content := fmt.Sprintf("%s\n\nSerial: %s\nIP: %s\nProductID: %d\nFirmware: %s\n\nLocation: %s\nGroup: %s",
+	content := fmt.Sprintf("%s\n\nSerial: %s\nIP: %s\nProductID: %d\nProductName: %s\n%sFirmware: %s\n\nLocation: %s\nGroup: %s",
 		style.ListSelected.BorderLeft(false).Render(title),
 		i.Serial,
 		i.Address.IP,
 		i.ProductID,
+		i.RegistryName,
+		lightType,
 		i.FirmwareVersion,
 		i.Location,
 		i.Group,
