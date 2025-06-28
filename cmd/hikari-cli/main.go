@@ -3,11 +3,13 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 	"slices"
 	"time"
 
 	"github.com/alessio-palumbo/hikari/cmd/hikari-cli/command"
 	"github.com/alessio-palumbo/hikari/cmd/hikari-cli/device"
+	"github.com/alessio-palumbo/hikari/cmd/hikari-cli/internal/version"
 	"github.com/alessio-palumbo/hikari/cmd/hikari-cli/style"
 	"github.com/alessio-palumbo/hikari/pkg/client"
 	"github.com/charmbracelet/bubbles/list"
@@ -355,6 +357,11 @@ func (m model) renderStartupSpinnerOrDevices() string {
 }
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "--version" {
+		version.Print()
+		os.Exit(0)
+	}
+
 	m := initialModel()
 	defer m.deviceManager.Close()
 
