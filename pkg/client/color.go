@@ -25,9 +25,9 @@ func NewColor(hsbk packets.LightHsbk) Color {
 
 func (c *Color) String() string {
 	if c.Saturation == 0 {
-		return fmt.Sprintf("Brightness: %f% Kelvin: %d", c.Brightness, c.Kelvin)
+		return fmt.Sprintf("Brightness: %f%% Kelvin: %d", c.Brightness, c.Kelvin)
 	}
-	return fmt.Sprintf("Brightness: %f%, Hue: %f, Saturation: %f%", c.Brightness, c.Hue, c.Saturation)
+	return fmt.Sprintf("Brightness: %f%%, Hue: %f, Saturation: %f%%", c.Brightness, c.Hue, c.Saturation)
 }
 
 func convertDeviceValueToExternal(v uint16, multiplier float64) float64 {
