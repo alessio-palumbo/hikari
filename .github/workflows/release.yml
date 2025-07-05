@@ -37,25 +37,36 @@ jobs:
           echo "COMMIT=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
           echo "BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_ENV
 
-      - name: Build binary
+      - name: Build and package binary
         run: |
           mkdir -p dist
           EXT=""
           if [ "${{ matrix.goos }}" == "windows" ]; then EXT=".exe"; fi
 
-          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} \
-          go build -o dist/hikari-${{ matrix.goos }}-${{ matrix.goarch }}$EXT \
-            -ldflags "-s -w \
-              -X github.com/alessio-palumbo/hikari/cmd/hikari-cli/internal/version.Version=$VERSION \
-              -X github.com/alessio-palumbo/hikari/cmd/hikari-cli/internal/version.Commit=$COMMIT \
-              -X github.com/alessio-palumbo/hikari/cmd/hikari-cli/internal/version.BuildTime=$BUILD_TIME" \
-            ./cmd/hikari-cli/main.go
+          BIN_NAME="hikari${EXT}"
+          OUTPUT_DIR="dist/hikari-${{ matrix.goos }}-${{ matrix.goarch }}"
+          mkdir -p "$OUTPUT_DIR"
 
-      - name: Upload artifact
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} \
+          go build -o "$OUTPUT_DIR/$BIN_NAME" \
+            -ldflags "-s -w \
+              -X github.com/alessio-palumbo/hikari/cmd/hikari/internal/version.Version=$VERSION \
+              -X github.com/alessio-palumbo/hikari/cmd/hikari/internal/version.Commit=$COMMIT \
+              -X github.com/alessio-palumbo/hikari/cmd/hikari/internal/version.BuildTime=$BUILD_TIME" \
+            ./cmd/hikari/main.go
+
+          echo "$VERSION" > "$OUTPUT_DIR/VERSION"
+          cp README.md LICENSE "$OUTPUT_DIR/"
+
+          cd dist
+          zip -r "hikari-${{ matrix.goos }}-${{ matrix.goarch }}.zip" "hikari-${{ matrix.goos }}-${{ matrix.goarch }}"
+          cd ..
+
+      - name: Upload zip artifact
         uses: actions/upload-artifact@v4
         with:
           name: hikari-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: dist/*
+          path: dist/hikari-${{ matrix.goos }}-${{ matrix.goarch }}.zip
 
   release:
     needs: build
@@ -64,7 +75,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download all build artifacts
+      - name: Download all zipped artifacts
         uses: actions/download-artifact@v4
         with:
           path: dist
@@ -74,7 +85,7 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           name: Release ${{ github.ref_name }}
-          files: dist/**/*
+          files: dist/*.zip
 
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
