@@ -7,11 +7,11 @@ import (
 	"slices"
 	"time"
 
-	"github.com/alessio-palumbo/hikari/cmd/hikari-cli/command"
-	"github.com/alessio-palumbo/hikari/cmd/hikari-cli/device"
-	"github.com/alessio-palumbo/hikari/cmd/hikari-cli/internal/version"
-	"github.com/alessio-palumbo/hikari/cmd/hikari-cli/style"
-	"github.com/alessio-palumbo/hikari/pkg/client"
+	"github.com/alessio-palumbo/hikari/cmd/hikari/command"
+	"github.com/alessio-palumbo/hikari/cmd/hikari/device"
+	"github.com/alessio-palumbo/hikari/cmd/hikari/internal/version"
+	"github.com/alessio-palumbo/hikari/cmd/hikari/style"
+	ctrl "github.com/alessio-palumbo/lifxlan-go/pkg/controller"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -38,14 +38,14 @@ const (
 )
 
 // Bubble Tea messages
-type deviceSelectedMsg client.Device
-type deviceUpdateMsg []client.Device
+type deviceSelectedMsg ctrl.Device
+type deviceUpdateMsg []ctrl.Device
 type msgSendDone struct{}
 type tickMsg time.Time
 
 type model struct {
 	state              state
-	deviceManager      *client.DeviceManager
+	deviceManager      *ctrl.Controller
 	deviceList         list.Model
 	selectedDevice     device.Item
 	showDeviceInfo     bool
@@ -60,7 +60,7 @@ type model struct {
 }
 
 func initialModel() model {
-	dm, err := client.NewDeviceManager()
+	c, err := ctrl.New()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -70,8 +70,8 @@ func initialModel() model {
 
 	return model{
 		state:         stateDeviceList,
-		deviceManager: dm,
-		deviceList:    device.NewList(dm.GetDevices()),
+		deviceManager: c,
+		deviceList:    device.NewList(c.GetDevices()),
 		commandList:   command.NewList(),
 		lastUpdate:    time.Now(),
 		spinner:       s,
@@ -218,7 +218,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.state = stateCommandList
 
 	case deviceUpdateMsg:
-		cmd = m.updateDeviceList([]client.Device(msg))
+		cmd = m.updateDeviceList([]ctrl.Device(msg))
 		m.lastUpdate = time.Now()
 
 	case msgSendDone:
@@ -268,9 +268,9 @@ func (m model) sendMessageSpinner() (model, tea.Cmd) {
 }
 
 // updateDeviceList updates the list of devices and keeps the current selection.
-func (m *model) updateDeviceList(devices []client.Device) tea.Cmd {
+func (m *model) updateDeviceList(devices []ctrl.Device) tea.Cmd {
 	// Remember current selection
-	var selectedSerial client.Serial
+	var selectedSerial ctrl.Serial
 	if selectedItem, ok := m.deviceList.SelectedItem().(device.Item); ok {
 		selectedSerial = selectedItem.Serial
 	}

@@ -6,10 +6,11 @@ import (
 	"strconv"
 	"time"
 
-	hlist "github.com/alessio-palumbo/hikari/cmd/hikari-cli/list"
-	"github.com/alessio-palumbo/hikari/cmd/hikari-cli/style"
-	"github.com/alessio-palumbo/hikari/internal/protocol"
-	"github.com/alessio-palumbo/hikari/pkg/client"
+	hlist "github.com/alessio-palumbo/hikari/cmd/hikari/list"
+	"github.com/alessio-palumbo/hikari/cmd/hikari/style"
+	"github.com/alessio-palumbo/lifxlan-go/pkg/messages"
+	"github.com/alessio-palumbo/lifxlan-go/pkg/protocol"
+	"github.com/alessio-palumbo/lifxprotocol-go/gen/protocol/enums"
 	"github.com/charmbracelet/bubbles/list"
 )
 
@@ -19,7 +20,7 @@ var commands = []Command{
 		Name:        "Power On",
 		Description: "Turn the device on",
 		Handler: func(params ...ParamItem) (*protocol.Message, error) {
-			return client.SetPowerOn(), nil
+			return messages.SetPowerOn(), nil
 		},
 		ParamTypes: []paramType{},
 	},
@@ -28,7 +29,7 @@ var commands = []Command{
 		Name:        "Power Off",
 		Description: "Turn the device off",
 		Handler: func(params ...ParamItem) (*protocol.Message, error) {
-			return client.SetPowerOff(), nil
+			return messages.SetPowerOff(), nil
 		},
 		ParamTypes: []paramType{},
 	},
@@ -61,7 +62,7 @@ var commands = []Command{
 				}
 			}
 
-			return client.SetColor(h, s, b, k, d), err
+			return messages.SetColor(h, s, b, k, d, enums.LightWaveformLIGHTWAVEFORMSAW), err
 		},
 		ParamTypes: []paramType{
 			{Name: "hue", Type: "float64", Required: false, Description: "Hue (0-360)", Validator: HueValidator},
@@ -93,7 +94,7 @@ var commands = []Command{
 				}
 			}
 
-			return client.SetColor(nil, nil, b, nil, d), err
+			return messages.SetColor(nil, nil, b, nil, d, enums.LightWaveformLIGHTWAVEFORMSAW), err
 		},
 		ParamTypes: []paramType{
 			{Name: "brightness", Type: "float64", Required: true, Description: "Brightness (0-100)", Validator: PercentageValidator},

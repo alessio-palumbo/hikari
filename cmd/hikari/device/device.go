@@ -4,23 +4,23 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/alessio-palumbo/hikari/cmd/hikari-cli/color"
-	hlist "github.com/alessio-palumbo/hikari/cmd/hikari-cli/list"
-	"github.com/alessio-palumbo/hikari/cmd/hikari-cli/style"
-	"github.com/alessio-palumbo/hikari/pkg/client"
+	"github.com/alessio-palumbo/hikari/cmd/hikari/color"
+	hlist "github.com/alessio-palumbo/hikari/cmd/hikari/list"
+	"github.com/alessio-palumbo/hikari/cmd/hikari/style"
+	ctrl "github.com/alessio-palumbo/lifxlan-go/pkg/controller"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/lipgloss"
 )
 
 // Item implements the list.Item interface.
-type Item client.Device
+type Item ctrl.Device
 
 func (i Item) FilterValue() string {
 	return i.Label + " " + i.Location + " " + i.Group
 }
 
 func (i Item) StateSphere() string {
-	if i.Type == client.DeviceTypeSwitch {
+	if i.Type == ctrl.DeviceTypeSwitch {
 		return "🔘"
 	} else if !i.PoweredOn {
 		return "⚫"
@@ -46,7 +46,7 @@ func (i Item) Info() string {
 		title = i.Serial.String()
 	}
 	var lightType string
-	if i.Type == client.DeviceTypeSwitch {
+	if i.Type == ctrl.DeviceTypeSwitch {
 		title += " - (Switch)"
 	} else {
 		lightType = fmt.Sprintf("LightType: %s\n", i.LightType)
@@ -63,7 +63,7 @@ func (i Item) Info() string {
 		i.Group,
 	)
 
-	if i.Type != client.DeviceTypeSwitch {
+	if i.Type != ctrl.DeviceTypeSwitch {
 		if i.PoweredOn {
 			showKelvin := i.Color.Saturation < 1
 			if showKelvin {
@@ -89,7 +89,7 @@ func (i Item) Info() string {
 	return boxStyle.Render(content)
 }
 
-func NewList(devices []client.Device) list.Model {
+func NewList(devices []ctrl.Device) list.Model {
 	renderFunc := func(w io.Writer, m list.Model, index int, listItem list.Item) {
 		deviceItem, ok := listItem.(Item)
 		if !ok {
@@ -111,7 +111,7 @@ func NewList(devices []client.Device) list.Model {
 	}
 	d := hlist.NewDelegate(renderFunc, hlist.SetDelegateSpacing(1))
 
-	f := func(i client.Device) list.Item { return Item(i) }
+	f := func(i ctrl.Device) list.Item { return Item(i) }
 	l := hlist.New(devices, f, d)
 	l.SetStatusBarItemName("device", "devices")
 	return l

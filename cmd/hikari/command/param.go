@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	hlist "github.com/alessio-palumbo/hikari/cmd/hikari-cli/list"
-	"github.com/alessio-palumbo/hikari/cmd/hikari-cli/style"
+	hlist "github.com/alessio-palumbo/hikari/cmd/hikari/list"
+	"github.com/alessio-palumbo/hikari/cmd/hikari/style"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
 )
