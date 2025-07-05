@@ -37,25 +37,38 @@ jobs:
           echo "COMMIT=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
           echo "BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_ENV
 
-      - name: Build binary
+      - name: Build and package binary
         run: |
           mkdir -p dist
-          EXT=""
-          if [ "${{ matrix.goos }}" == "windows" ]; then EXT=".exe"; fi
+          BIN_NAME="hikari"
+          if [ "${{ matrix.goos }}" == "windows" ]; then BIN_NAME="$BIN_NAME.exe"; fi
+
+          FOLDER_NAME="hikari-${{ matrix.goos }}-${{ matrix.goarch }}"
+          OUTPUT_DIR="dist/$FOLDER_NAME"
+
+          mkdir -p "$OUTPUT_DIR"
+          echo "Building for ${{ matrix.goos }} ${{ matrix.goarch }} in "$OUTPUT_DIR/$BIN_NAME""
 
           GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} \
-          go build -o dist/hikari-${{ matrix.goos }}-${{ matrix.goarch }}$EXT \
+          go build -o "$OUTPUT_DIR/$BIN_NAME" \
             -ldflags "-s -w \
-              -X github.com/alessio-palumbo/hikari/cmd/hikari-cli/internal/version.Version=$VERSION \
-              -X github.com/alessio-palumbo/hikari/cmd/hikari-cli/internal/version.Commit=$COMMIT \
-              -X github.com/alessio-palumbo/hikari/cmd/hikari-cli/internal/version.BuildTime=$BUILD_TIME" \
-            ./cmd/hikari-cli/main.go
+              -X github.com/alessio-palumbo/hikari/cmd/hikari/internal/version.Version=$VERSION \
+              -X github.com/alessio-palumbo/hikari/cmd/hikari/internal/version.Commit=$COMMIT \
+              -X github.com/alessio-palumbo/hikari/cmd/hikari/internal/version.BuildTime=$BUILD_TIME" \
+            ./cmd/hikari/main.go
 
-      - name: Upload artifact
+          echo "$VERSION" > "$OUTPUT_DIR/VERSION"
+          cp README.md LICENSE "$OUTPUT_DIR/"
+
+          cd dist
+          zip -r "$FOLDER_NAME.zip" "$FOLDER_NAME"
+          cd ..
+
+      - name: Upload zip artifact
         uses: actions/upload-artifact@v4
         with:
           name: hikari-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: dist/*
+          path: dist/*.zip
 
   release:
     needs: build
@@ -64,17 +77,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download all build artifacts
+      - name: Download all zipped artifacts
         uses: actions/download-artifact@v4
         with:
           path: dist
+          merge-multiple: true
 
       - name: Create GitHub Release and Upload Assets
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: Release ${{ github.ref_name }}
-          files: dist/**/*
+          files: dist/*.zip
 
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
