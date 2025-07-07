@@ -23,8 +23,26 @@ const (
 	defaultSendMessageSpinner  = 300 * time.Millisecond
 )
 
+const (
+	mappingQuit      = "q"
+	mappingInfo      = "i"
+	mappingSelect    = "enter"
+	mappingSelectAlt = "e"
+	mappingBack      = "left"
+	mappingBackAlt   = "h"
+	mappingApply     = "a"
+)
+
 var (
-	filterExcludedBindings = []string{"enter", "q", "i", "e", "b"}
+	filterExcludedBindings = []string{
+		mappingQuit,
+		mappingInfo,
+		mappingSelect,
+		mappingSelectAlt,
+		mappingBack,
+		mappingBackAlt,
+		mappingApply,
+	}
 )
 
 type state int
@@ -110,14 +128,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, cmd
 			}
 			switch msg.String() {
-			case "enter", "e":
+			case mappingSelect, mappingSelectAlt:
 				if deviceItem, ok := m.deviceList.SelectedItem().(device.Item); ok {
 					m.selectedDevice = deviceItem
 					m.state = stateCommandList
 				}
-			case "i":
+			case mappingInfo:
 				m.showDeviceInfo = !m.showDeviceInfo
-			case "q", "ctrl+c":
+			case mappingQuit:
 				return m, tea.Quit
 			default:
 				m.deviceList, cmd = m.deviceList.Update(msg)
@@ -129,7 +147,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, cmd
 			}
 			switch msg.String() {
-			case "enter", "e":
+			case mappingSelect, mappingSelectAlt:
 				if commandItem, ok := m.commandList.SelectedItem().(command.Item); ok {
 					m.selectedCommand = commandItem
 
@@ -144,11 +162,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						return m, nil
 					}
 				}
-			case "i":
+			case mappingInfo:
 				m.showDeviceInfo = !m.showDeviceInfo
-			case "esc", "b":
+			case mappingBack, mappingBackAlt:
 				m.state = stateDeviceList
-			case "q", "ctrl+c":
+			case mappingQuit:
 				return m, tea.Quit
 			default:
 				m.commandList, cmd = m.commandList.Update(msg)
@@ -164,11 +182,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			paramItem := m.paramList.Items()[paramIndex].(command.ParamItem)
 
 			switch msg.String() {
-			case "enter", "e":
+			case mappingSelect, mappingSelectAlt:
 				paramItem.SetEdit(true)
 				m.paramList.SetItem(paramIndex, paramItem)
 				m.state = stateParamEdit
-			case "a":
+			case mappingApply:
 				message, err := m.selectedCommand.Handler(command.ParamItemsFromModel(m.paramList)...)
 				if err != nil {
 					m.errMessage = err.Error()
@@ -176,11 +194,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				m.deviceManager.Send(m.selectedDevice.Serial, message)
 				return m.sendMessageSpinner()
-			case "esc", "b":
+			case mappingBack, mappingBackAlt:
 				paramItem.SetEdit(false)
 				m.paramList.SetItem(paramIndex, paramItem)
 				m.state = stateCommandList
-			case "q", "ctrl+c":
+			case mappingQuit:
 				return m, tea.Quit
 			default:
 				m.paramList, cmd = m.paramList.Update(msg)
@@ -191,14 +209,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			paramItem := m.paramList.Items()[paramIndex].(command.ParamItem)
 
 			switch msg.String() {
-			case "enter", "e":
+			case mappingSelect, mappingSelectAlt:
 				val := paramItem.Input.Value()
 				if err := paramItem.SetValue(val); err != nil {
 					m.errMessage = err.Error()
 					return m, nil
 				}
 				fallthrough
-			case "esc", "b":
+			case mappingBack, mappingBackAlt:
 				m.errMessage = ""
 				paramItem.SetEdit(false)
 				m.paramList.SetItem(paramIndex, paramItem)
