@@ -1,5 +1,7 @@
 github.com/alessio-palumbo/lifxlan-go v0.1.0 h1:Io2f8Nxk8LgedNXXpN9sjgl0r0Q2rV5tdDjkpn6YRHA=
 github.com/alessio-palumbo/lifxlan-go v0.1.0/go.mod h1:ayr9emg369PpOVfc1A+FiTxlbRuhwQUoBtmyU9ww4Vs=
+github.com/alessio-palumbo/lifxlan-go v0.1.1 h1:a4T87Uxu68RJS7fLJwuO97aPOjNTwePR7KDyjPD6inI=
+github.com/alessio-palumbo/lifxlan-go v0.1.1/go.mod h1:ayr9emg369PpOVfc1A+FiTxlbRuhwQUoBtmyU9ww4Vs=
 github.com/alessio-palumbo/lifxprotocol-go v0.1.0 h1:9sjqTWqQLI4wj5yMirGPQaMvjCDffKFrGnOni4hRZzg=
 github.com/alessio-palumbo/lifxprotocol-go v0.1.0/go.mod h1:Wvmw7KNc2ieF6CPM8Of0EdWW0e/w5nlTwK7sLwMDbJ0=
 github.com/alessio-palumbo/lifxregistry-go v0.1.0 h1:Nve6VqXpTfkhoPXsIfujJnb3r9sESzKZDCLvSosFsEc=

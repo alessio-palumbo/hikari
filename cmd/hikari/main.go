@@ -136,7 +136,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					switch m.selectedCommand.ID {
 					case "power_on", "power_off":
 						message, _ := m.selectedCommand.Handler()
-						m.deviceManager.Send(m.selectedDevice.Address, message)
+						m.deviceManager.Send(m.selectedDevice.Serial, message)
 						return m.sendMessageSpinner()
 					case "set_color", "set_brightness":
 						m.paramList = m.selectedCommand.NewParams()
@@ -174,7 +174,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.errMessage = err.Error()
 					return m, nil
 				}
-				m.deviceManager.Send(m.selectedDevice.Address, message)
+				m.deviceManager.Send(m.selectedDevice.Serial, message)
 				return m.sendMessageSpinner()
 			case "esc", "b":
 				paramItem.SetEdit(false)
