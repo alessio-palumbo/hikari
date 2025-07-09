@@ -128,6 +128,7 @@ func (i Item) NewParams() list.Model {
 }
 
 func NewList() list.Model {
+	padFunc := rightPadder(commands, func(c Command) int { return len(c.Name) })
 	renderFunc := func(w io.Writer, m list.Model, index int, listItem list.Item) {
 		item, ok := listItem.(Item)
 		if !ok {
@@ -136,8 +137,13 @@ func NewList() list.Model {
 
 		fn := style.ListItem.Render
 		if index == m.Index() {
+			action := "[S]end"
+			if len(item.ParamTypes) > 0 {
+				action = "[E]dit"
+			}
+
 			fn = func(s ...string) string {
-				return style.ListSelected.Render(s...)
+				return style.ListSelected.Render(padFunc(s[0])) + style.ActionFocused.Render(action)
 			}
 		}
 

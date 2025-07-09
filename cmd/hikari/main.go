@@ -30,7 +30,7 @@ const (
 	mappingSelectAlt = "e"
 	mappingBack      = "left"
 	mappingBackAlt   = "h"
-	mappingApply     = "a"
+	mappingSend      = "s"
 )
 
 var (
@@ -41,7 +41,7 @@ var (
 		mappingSelectAlt,
 		mappingBack,
 		mappingBackAlt,
-		mappingApply,
+		mappingSend,
 	}
 )
 
@@ -186,7 +186,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				paramItem.SetEdit(true)
 				m.paramList.SetItem(paramIndex, paramItem)
 				m.state = stateParamEdit
-			case mappingApply:
+			case mappingSend:
 				message, err := m.selectedCommand.Handler(command.ParamItemsFromModel(m.paramList)...)
 				if err != nil {
 					m.errMessage = err.Error()
@@ -287,7 +287,6 @@ func (m model) sendMessageSpinner() (model, tea.Cmd) {
 
 // updateDeviceList updates the list of devices and keeps the current selection.
 func (m *model) updateDeviceList(devices []ctrl.Device) tea.Cmd {
-	// Remember current selection
 	var selectedSerial ctrl.Serial
 	if selectedItem, ok := m.deviceList.SelectedItem().(device.Item); ok {
 		selectedSerial = selectedItem.Serial
@@ -309,32 +308,29 @@ func (m model) View() string {
 	title := style.Title.Render("Hikari")
 	switch m.state {
 	case stateDeviceList:
-		return m.withDeviceInfoView(fmt.Sprintf("%s\n%s\n%s\n%s",
+		return m.withDeviceInfoView(fmt.Sprintf("%s\n%s\n%s",
 			title,
 			m.renderStartupSpinnerOrDevices(),
 			style.Status.Render(fmt.Sprintf("Last updated: %s | Devices: %d",
 				m.lastUpdate.Format("15:04:05"), len(m.deviceList.Items()))),
-			style.Help.Render("↑/↓: navigate • enter: select device • q: quit| devices"),
 		))
 
 	case stateCommandList:
-		return m.withDeviceInfoView(fmt.Sprintf("%s\n\n%s\n%s%s\n\n%s",
+		return m.withDeviceInfoView(fmt.Sprintf("%s\n\n%s\n%s%s",
 			title,
 			m.selectedDevice.Title(),
 			m.commandList.View(),
 			m.renderSpinner(),
-			style.Help.Render("↑/↓: navigate • enter: select • esc: back • q: quit"),
 		))
 
 	case stateParamList, stateParamEdit:
-		return fmt.Sprintf("%s\n\n%s\n\n%s\n%s%s%s\n\n%s",
+		return fmt.Sprintf("%s\n\n%s\n\n%s\n%s%s%s",
 			title,
 			m.selectedDevice.Title(),
 			m.selectedCommand.Title(),
 			m.paramList.View(),
 			m.renderError(),
 			m.renderSpinner(),
-			style.Help.Render("↑/↓: navigate • enter: edit • a: apply • esc: back • q: quit"),
 		)
 	}
 

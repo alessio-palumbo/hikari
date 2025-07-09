@@ -1,9 +1,10 @@
 package command
 
 import (
+	"cmp"
 	"fmt"
 	"io"
-	"strings"
+	"slices"
 	"time"
 
 	hlist "github.com/alessio-palumbo/hikari/cmd/hikari/list"
@@ -13,7 +14,10 @@ import (
 )
 
 const (
-	defaultPaddingAfterName = 5
+	defaultPadding = 5
+
+	paramInputWidth = 20
+	paramCharLimit  = 5
 )
 
 // paramType defines a parameter for a command.
@@ -71,8 +75,8 @@ func (p *ParamItem) SetEdit(v bool) {
 		p.Editing = true
 		p.Input = textinput.New()
 		p.Input.Prompt = ""
-		p.Input.Width = 20
-		p.Input.CharLimit = 5
+		p.Input.Width = paramInputWidth
+		p.Input.CharLimit = paramCharLimit
 		p.Input.Placeholder = p.Description
 		p.Input.Focus()
 		return
@@ -90,15 +94,7 @@ func ParamItemsFromModel(l list.Model) []ParamItem {
 }
 
 func newParamsList(params []paramType) list.Model {
-	// Calculate longest name for padding value.
-	var longestName int
-	for _, p := range params {
-		l := len(p.Name)
-		if l > longestName {
-			longestName = l
-		}
-	}
-
+	padFunc := rightPadder(params, func(p paramType) int { return len(p.Name) })
 	renderFunc := func(w io.Writer, m list.Model, index int, listItem list.Item) {
 		item, ok := listItem.(ParamItem)
 		if !ok {
@@ -109,7 +105,6 @@ func newParamsList(params []paramType) list.Model {
 		if item.Required {
 			str = str + " *"
 		}
-		padding := longestName + defaultPaddingAfterName - len(str)
 
 		var valueStr string
 		if item.Editing {
@@ -120,12 +115,26 @@ func newParamsList(params []paramType) list.Model {
 			valueStr = "[not set]"
 		}
 
-		str = fmt.Sprintf("%s%s-> %s", str, strings.Repeat(" ", padding), valueStr)
+		str = fmt.Sprintf("%s-> %s", padFunc(str), valueStr)
+
+		sendLabelStyle := style.ActionFocused
+		for _, i := range m.Items() {
+			p := i.(ParamItem)
+			if p.Required && p.GetValue() == "" {
+				sendLabelStyle = style.ActionBlurred
+				break
+			}
+		}
 
 		fn := style.ListItem.Render
 		if index == m.Index() {
 			fn = func(s ...string) string {
-				return style.ListSelected.Render(s...)
+				var padding int
+				if !item.Editing {
+					padding = paramInputWidth + 1 - len(valueStr)
+				}
+				editAction := style.ActionFocused.PaddingLeft(padding).Render("[E]dit")
+				return style.ListSelected.Render(s[0], editAction, sendLabelStyle.Render("[S]end"))
 			}
 		}
 
@@ -182,4 +191,14 @@ func DurationValidator(v string) error {
 		return fmt.Errorf("duration too long")
 	}
 	return nil
+}
+
+func rightPadder[S ~[]E, E any](ss S, lenFunc func(E) int) func(s string) string {
+	longest := slices.MaxFunc(ss, func(a, b E) int {
+		return cmp.Compare(lenFunc(a), lenFunc(b))
+	})
+	maxPadding := lenFunc(longest) + defaultPadding
+	return func(s string) string {
+		return fmt.Sprintf("%-*s", maxPadding, s)
+	}
 }

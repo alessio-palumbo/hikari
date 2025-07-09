@@ -11,8 +11,10 @@ var (
 	TitleBackground     = lipgloss.Color("#5f5fd7")
 	TitleColor          = lipgloss.Color("#ffffd5")
 	ListTitleColor      = lipgloss.Color("#aa38c7")
+	ActionFocustColor   = lipgloss.Color("#008eff")
 	TODO1Color          = lipgloss.Color("#874bfd")
 	TODO2Color          = lipgloss.Color("#ee6ff8")
+	TODO3Color          = lipgloss.Color("#58b7ff")
 )
 
 var (
@@ -27,6 +29,15 @@ var (
 			Bold(true).
 			Foreground(ListColor).
 			PaddingLeft(2)
+
+	ActionFocused = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(ActionFocustColor)
+
+	ActionBlurred = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(ListColor).
+			Faint(true)
 
 	Status = lipgloss.NewStyle().Foreground(StatusColor)
 
