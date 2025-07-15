@@ -56,7 +56,6 @@ const (
 )
 
 // Bubble Tea messages
-type deviceSelectedMsg ctrl.Device
 type deviceUpdateMsg []ctrl.Device
 type msgSendDone struct{}
 type tickMsg time.Time
@@ -112,14 +111,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case list.FilterMatchesMsg:
-		switch m.state {
-		case stateDeviceList:
-			m.deviceList, cmd = m.deviceList.Update(msg)
-		case stateCommandList:
-			m.commandList, cmd = m.commandList.Update(msg)
-		case stateParamList:
-			m.paramList, cmd = m.paramList.Update(msg)
-		}
+		m.deviceList, cmd = m.deviceList.Update(msg)
 	case tea.KeyMsg:
 		switch m.state {
 		case stateDeviceList:
@@ -129,8 +121,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			switch msg.String() {
 			case mappingSelect, mappingSelectAlt:
-				if deviceItem, ok := m.deviceList.SelectedItem().(device.Item); ok {
-					m.selectedDevice = deviceItem
+				if selectedDevice, ok := m.deviceList.SelectedItem().(device.Item); ok {
+					m.selectedDevice = selectedDevice
 					m.state = stateCommandList
 				}
 			case mappingInfo:
@@ -142,10 +134,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case stateCommandList:
-			if shouldSkipBindingOnFilter(m.commandList, msg.String()) {
-				m.commandList, cmd = m.commandList.Update(msg)
-				return m, cmd
-			}
 			switch msg.String() {
 			case mappingSelect, mappingSelectAlt:
 				if commandItem, ok := m.commandList.SelectedItem().(command.Item); ok {
@@ -231,10 +219,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.deviceList.SetWidth(msg.Width)
 		m.deviceList.SetHeight(msg.Height - 4)
 
-	case deviceSelectedMsg:
-		m.selectedDevice = device.Item(msg)
-		m.state = stateCommandList
-
 	case deviceUpdateMsg:
 		cmd = m.updateDeviceList([]ctrl.Device(msg))
 		m.lastUpdate = time.Now()
@@ -296,19 +280,31 @@ func (m *model) updateDeviceList(devices []ctrl.Device) tea.Cmd {
 	for i := range devices {
 		d := device.Item(devices[i])
 		items[i] = d
-		if d.Serial == selectedSerial {
+		// Update selectedDevice and its state so that it reflect in Commands and Params views.
+		if d.Serial == m.selectedDevice.Serial {
 			m.selectedDevice = d
 		}
 	}
 
-	return m.deviceList.SetItems(items)
+	cmd := m.deviceList.SetItems(items)
+	for i, d := range m.deviceList.VisibleItems() {
+		if d.(device.Item).Serial == selectedSerial {
+			m.deviceList.Select(i)
+			break
+		}
+	}
+	return cmd
 }
 
 func (m model) View() string {
 	title := style.Title.Render("Hikari")
 	switch m.state {
 	case stateDeviceList:
-		return m.withDeviceInfoView(fmt.Sprintf("%s\n%s\n%s",
+		var d *device.Item
+		if deviceItem, ok := m.deviceList.SelectedItem().(device.Item); ok {
+			d = &deviceItem
+		}
+		return m.withDeviceInfoView(d, fmt.Sprintf("%s\n%s\n%s",
 			title,
 			m.renderStartupSpinnerOrDevices(),
 			style.Status.Render(fmt.Sprintf("Last updated: %s | Devices: %d",
@@ -316,7 +312,7 @@ func (m model) View() string {
 		))
 
 	case stateCommandList:
-		return m.withDeviceInfoView(fmt.Sprintf("%s\n\n%s\n%s%s",
+		return m.withDeviceInfoView(&m.selectedDevice, fmt.Sprintf("%s\n\n%s\n\n%s%s",
 			title,
 			m.selectedDevice.Title(),
 			m.commandList.View(),
@@ -324,7 +320,7 @@ func (m model) View() string {
 		))
 
 	case stateParamList, stateParamEdit:
-		return fmt.Sprintf("%s\n\n%s\n\n%s\n%s%s%s",
+		return fmt.Sprintf("%s\n\n%s\n\n%s\n\n%s%s%s",
 			title,
 			m.selectedDevice.Title(),
 			m.selectedCommand.Title(),
@@ -337,8 +333,8 @@ func (m model) View() string {
 	return ""
 }
 
-func (m model) withDeviceInfoView(view string) string {
-	if deviceItem, ok := m.deviceList.SelectedItem().(device.Item); ok && m.showDeviceInfo {
+func (m model) withDeviceInfoView(deviceItem *device.Item, view string) string {
+	if deviceItem != nil && m.showDeviceInfo {
 		modal := "\n" + lipgloss.Place(20, m.deviceList.Height(),
 			lipgloss.Left, lipgloss.Top,
 			deviceItem.Info(),
