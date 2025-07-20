@@ -155,7 +155,6 @@ func NewList() list.Model {
 	f := func(i Command) list.Item { return Item(i) }
 	l := hlist.New(commands, f, d)
 	l.SetHeight(len(commands) * 2)
-	l.SetFilteringEnabled(false)
 
 	return l
 }

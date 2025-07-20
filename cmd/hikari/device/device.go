@@ -51,7 +51,7 @@ func (i Item) Info() string {
 	} else {
 		lightType = fmt.Sprintf("LightType: %s\n", i.LightType)
 	}
-	content := fmt.Sprintf("%s\n\nSerial: %s\nIP: %s\nProductID: %d\nProductName: %s\n%sFirmware: %s\n\nLocation: %s\nGroup: %s",
+	content := fmt.Sprintf("%s\n\nSerial: %s\nIP: %s\n\nProductID: %d\nProductName: %s\n%sFirmware: %s\n\nLocation: %s\nGroup: %s",
 		style.ListSelected.BorderLeft(false).Render(title),
 		i.Serial,
 		i.Address.IP,
@@ -67,7 +67,7 @@ func (i Item) Info() string {
 		if i.PoweredOn {
 			showKelvin := i.Color.Saturation < 1
 			if showKelvin {
-				content += fmt.Sprintf("\n\n🔆 %.0f%% 🌡 %dK",
+				content += fmt.Sprintf("\n\n🔆 %.0f%% 🌡  %dK",
 					i.Color.Brightness,
 					i.Color.Kelvin)
 			} else {
@@ -114,6 +114,7 @@ func NewList(devices []ctrl.Device) list.Model {
 	f := func(i ctrl.Device) list.Item { return Item(i) }
 	l := hlist.New(devices, f, d)
 	l.SetStatusBarItemName("device", "devices")
+	l.SetFilteringEnabled(true)
 	return l
 }
 

@@ -23,7 +23,7 @@ func New[S ~[]E, E any](ss S, wrap func(E) list.Item, dl delegate) list.Model {
 	l.SetShowTitle(false)
 	l.SetShowHelp(false)
 	l.SetShowStatusBar(false)
-	l.SetFilteringEnabled(true)
+	l.SetFilteringEnabled(false)
 	l.KeyMap.Quit = key.NewBinding(key.WithKeys("q"), key.WithHelp("q", "quit"))
 	return l
 }

@@ -21,6 +21,7 @@ import (
 const (
 	defaultDeviceRefreshPeriod = 2 * time.Second
 	defaultSendMessageSpinner  = 300 * time.Millisecond
+	listWidth                  = 40
 )
 
 const (
@@ -135,7 +136,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case stateCommandList:
 			switch msg.String() {
-			case mappingSelect, mappingSelectAlt:
+			case mappingSend:
 				if commandItem, ok := m.commandList.SelectedItem().(command.Item); ok {
 					m.selectedCommand = commandItem
 
@@ -144,6 +145,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						message, _ := m.selectedCommand.Handler()
 						m.deviceManager.Send(m.selectedDevice.Serial, message)
 						return m.sendMessageSpinner()
+					}
+				}
+			case mappingSelect, mappingSelectAlt:
+				if commandItem, ok := m.commandList.SelectedItem().(command.Item); ok {
+					m.selectedCommand = commandItem
+
+					switch m.selectedCommand.ID {
 					case "set_color", "set_brightness":
 						m.paramList = m.selectedCommand.NewParams()
 						m.state = stateParamList
@@ -334,8 +342,9 @@ func (m model) View() string {
 }
 
 func (m model) withDeviceInfoView(deviceItem *device.Item, view string) string {
+	view = lipgloss.NewStyle().Width(listWidth).Render(view)
 	if deviceItem != nil && m.showDeviceInfo {
-		modal := "\n" + lipgloss.Place(20, m.deviceList.Height(),
+		modal := "\n" + lipgloss.Place(0, 30,
 			lipgloss.Left, lipgloss.Top,
 			deviceItem.Info(),
 		)

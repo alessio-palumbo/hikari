@@ -145,7 +145,6 @@ func newParamsList(params []paramType) list.Model {
 	f := func(i paramType) list.Item { return ParamItem{paramType: &i} }
 	l := hlist.New(params, f, d)
 	l.SetHeight(len(commands)*2 + 1)
-	l.SetFilteringEnabled(false)
 
 	return l
 }
