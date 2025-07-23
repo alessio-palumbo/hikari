@@ -16,7 +16,6 @@ type MultiSelectItem struct {
 type MultiSelectModel struct {
 	items  []MultiSelectItem
 	cursor int
-	done   bool
 }
 
 func NewMultiSelect(options []string) MultiSelectModel {
@@ -32,9 +31,6 @@ func (m MultiSelectModel) Init() tea.Cmd {
 }
 
 func (m MultiSelectModel) Update(msg tea.Msg) (MultiSelectModel, tea.Cmd) {
-	if m.done {
-		return m, tea.Quit
-	}
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -48,19 +44,12 @@ func (m MultiSelectModel) Update(msg tea.Msg) (MultiSelectModel, tea.Cmd) {
 			}
 		case " ", "t":
 			m.items[m.cursor].Checked = !m.items[m.cursor].Checked
-		case "enter":
-			m.done = true
-			return m, tea.Quit
 		}
 	}
 	return m, nil
 }
 
 func (m MultiSelectModel) View() string {
-	if m.done {
-		return m.SelectedLabels()
-	}
-
 	var b strings.Builder
 	for i, item := range m.items {
 		checkbox := "[ ]"
@@ -76,7 +65,7 @@ func (m MultiSelectModel) View() string {
 	return b.String()
 }
 
-func (m MultiSelectModel) SelectedLabels() string {
+func (m MultiSelectModel) SelectedOptions() string {
 	var labels []string
 	for _, l := range m.items {
 		if l.Checked {
