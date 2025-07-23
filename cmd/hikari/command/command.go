@@ -143,7 +143,7 @@ func NewList() list.Model {
 			}
 
 			fn = func(s ...string) string {
-				return style.ListSelected.Render(padFunc(s[0])) + style.ActionFocused.Render(action)
+				return style.ListSelected.Render(padFunc(s[0])) + style.ActionActive.Render(action)
 			}
 		}
 
