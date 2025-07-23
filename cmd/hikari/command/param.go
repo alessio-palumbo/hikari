@@ -13,6 +13,7 @@ import (
 	"github.com/alessio-palumbo/hikari/cmd/hikari/style"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -74,7 +75,18 @@ func (p ParamItem) GetValue() string {
 	}
 	return ""
 }
-func (p *ParamItem) SetValue(v string) error {
+
+func (p *ParamItem) SetValue() error {
+	var v string
+	switch p.Type {
+	case input.InputText:
+		v = p.Input.Value()
+	case input.InputSingleSelect:
+		v = p.SingleInput.SelectedOption()
+	case input.InputMultiSelect:
+		v = p.MultiInput.SelectedOptions()
+	}
+
 	// Reset field if empty
 	if v == "" {
 		p.value = nil
@@ -86,6 +98,20 @@ func (p *ParamItem) SetValue(v string) error {
 	}
 	p.value = &v
 	return nil
+}
+
+func (p *ParamItem) UpdateValue(msg tea.KeyMsg) tea.Cmd {
+	var cmd tea.Cmd
+	switch p.Type {
+	case input.InputText:
+		p.Input, cmd = p.Input.Update(msg)
+	case input.InputSingleSelect:
+		p.SingleInput, cmd = p.SingleInput.Update(msg)
+	case input.InputMultiSelect:
+		p.MultiInput, cmd = p.MultiInput.Update(msg)
+	}
+
+	return cmd
 }
 
 func (p *ParamItem) SetEdit(v bool) {

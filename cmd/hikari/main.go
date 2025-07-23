@@ -10,7 +10,6 @@ import (
 
 	"github.com/alessio-palumbo/hikari/cmd/hikari/command"
 	"github.com/alessio-palumbo/hikari/cmd/hikari/device"
-	"github.com/alessio-palumbo/hikari/cmd/hikari/input"
 	"github.com/alessio-palumbo/hikari/cmd/hikari/internal/version"
 	"github.com/alessio-palumbo/hikari/cmd/hikari/style"
 	ctrl "github.com/alessio-palumbo/lifxlan-go/pkg/controller"
@@ -235,17 +234,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			switch msg.String() {
 			case mappingSelect, mappingSelectAlt:
-				var val string
-				switch paramItem.Type {
-				case input.InputText:
-					val = paramItem.Input.Value()
-				case input.InputSingleSelect:
-					val = paramItem.SingleInput.SelectedOption()
-				case input.InputMultiSelect:
-					val = paramItem.MultiInput.SelectedOptions()
-				}
-
-				if err := paramItem.SetValue(val); err != nil {
+				if err := paramItem.SetValue(); err != nil {
 					m.errMessage = err.Error()
 					return m, nil
 				}
@@ -255,14 +244,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				paramItem.SetEdit(false)
 				m.state = stateParamList
 			default:
-				switch paramItem.Type {
-				case input.InputText:
-					paramItem.Input, cmd = paramItem.Input.Update(msg)
-				case input.InputSingleSelect:
-					paramItem.SingleInput, cmd = paramItem.SingleInput.Update(msg)
-				case input.InputMultiSelect:
-					paramItem.MultiInput, cmd = paramItem.MultiInput.Update(msg)
-				}
+				paramItem.UpdateValue(msg)
 			}
 			m.paramList.SetItem(paramIndex, paramItem)
 		}
