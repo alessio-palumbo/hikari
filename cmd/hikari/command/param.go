@@ -5,12 +5,15 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"strings"
 	"time"
 
+	"github.com/alessio-palumbo/hikari/cmd/hikari/input"
 	hlist "github.com/alessio-palumbo/hikari/cmd/hikari/list"
 	"github.com/alessio-palumbo/hikari/cmd/hikari/style"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/lipgloss"
 )
 
 const (
@@ -20,10 +23,23 @@ const (
 	paramCharLimit  = 5
 )
 
+var options = []string{"red", "orange", "green", "yellow", "cyan", "blue", "magenta", "purple"}
+
+var colorNamesToHue = map[string]uint16{
+	"red":     0,     // 0°
+	"orange":  8192,  // 45°
+	"yellow":  10923, // 60°
+	"green":   21845, // 120°
+	"cyan":    32768, // 180°
+	"blue":    43690, // 240°
+	"purple":  49152, // 270°
+	"magenta": 54613, // 300°
+}
+
 // paramType defines a parameter for a command.
 type paramType struct {
 	Name        string
-	Type        string
+	Type        input.InputType
 	Required    bool
 	Description string
 	Default     any
@@ -32,9 +48,11 @@ type paramType struct {
 
 type ParamItem struct {
 	*paramType
-	value   *string
-	Editing bool
-	Input   textinput.Model
+	value       *string
+	Editing     bool
+	Input       textinput.Model
+	SingleInput input.SingleSelectModel
+	MultiInput  input.MultiSelectModel
 }
 
 func (i ParamItem) FilterValue() string { return i.Name }
@@ -73,15 +91,26 @@ func (p *ParamItem) SetValue(v string) error {
 func (p *ParamItem) SetEdit(v bool) {
 	if v {
 		p.Editing = true
-		p.Input = textinput.New()
-		p.Input.Prompt = ""
-		p.Input.Width = paramInputWidth
-		p.Input.CharLimit = paramCharLimit
-		p.Input.Placeholder = p.Description
-		p.Input.Focus()
+		switch p.Type {
+		case input.InputText:
+			p.setEditInput()
+		case input.InputSingleSelect:
+			p.SingleInput = input.NewInputSingleSelect(options)
+		case input.InputMultiSelect:
+			p.MultiInput = input.NewMultiSelect(options)
+		}
 		return
 	}
 	p.Editing = false
+}
+
+func (p *ParamItem) setEditInput() {
+	p.Input = textinput.New()
+	p.Input.Prompt = ""
+	p.Input.Width = paramInputWidth
+	p.Input.CharLimit = paramCharLimit
+	p.Input.Placeholder = p.Description
+	p.Input.Focus()
 }
 
 func ParamItemsFromModel(l list.Model) []ParamItem {
@@ -105,19 +134,27 @@ func newParamsList(params []paramType) list.Model {
 		if item.Required {
 			str = str + " *"
 		}
+		str = fmt.Sprintf("%s-> ", padFunc(str))
 
 		var valueStr string
 		if item.Editing {
-			valueStr = item.Input.View()
+			switch item.Type {
+			case input.InputText:
+				str += item.Input.View()
+			case input.InputSingleSelect:
+				str = lipgloss.NewStyle().PaddingRight(11).Render(lipgloss.JoinHorizontal(lipgloss.Top, str, item.SingleInput.View()))
+			case input.InputMultiSelect:
+				str = lipgloss.NewStyle().PaddingRight(11).Render(lipgloss.JoinHorizontal(lipgloss.Top, str, item.MultiInput.View()))
+			}
 		} else if v := item.GetValue(); v != "" {
 			valueStr = "[" + v + "]"
+			str += valueStr
 		} else {
 			valueStr = "[not set]"
+			str += valueStr
 		}
 
-		str = fmt.Sprintf("%s-> %s", padFunc(str), valueStr)
-
-		sendLabelStyle := style.ActionFocused
+		sendLabelStyle := style.ActionActive
 		for _, i := range m.Items() {
 			p := i.(ParamItem)
 			if p.Required && p.GetValue() == "" {
@@ -133,8 +170,8 @@ func newParamsList(params []paramType) list.Model {
 				if !item.Editing {
 					padding = paramInputWidth + 1 - len(valueStr)
 				}
-				editAction := style.ActionFocused.PaddingLeft(padding).Render("[E]dit")
-				return style.ListSelected.Render(s[0], editAction, sendLabelStyle.Render("[S]end"))
+				editAction := style.ActionActive.PaddingLeft(padding).Render("[E]dit")
+				return style.ListSelected.Render(lipgloss.JoinHorizontal(lipgloss.Top, s[0], editAction, sendLabelStyle.Render("[S]end")))
 			}
 		}
 
@@ -189,6 +226,51 @@ func DurationValidator(v string) error {
 	}
 	if d > 24*time.Hour {
 		return fmt.Errorf("duration too long")
+	}
+	return nil
+}
+
+func EffectModeValidator(v string) error {
+	m, err := parseInt64Input(v)
+	if err != nil {
+		return fmt.Errorf("invalid value, must be a number")
+	}
+	if *m < 0 || *m > 2 {
+		return fmt.Errorf("mode must be between 0-2")
+	}
+	return nil
+}
+
+func CyclesValidator(v string) error {
+	m, err := parseInt64Input(v)
+	if err != nil {
+		return fmt.Errorf("invalid value, must be a number")
+	}
+	if *m < 0 {
+		return fmt.Errorf("cycles must 0 or greater")
+	}
+	return nil
+}
+
+func PositiveIntegerValidator(v string) error {
+	m, err := parseInt64Input(v)
+	if err != nil {
+		return fmt.Errorf("invalid value, must be a number")
+	}
+	if *m < 1 {
+		return fmt.Errorf("value must 1 or greater")
+	}
+	return nil
+}
+
+func ColorListValidator(v string) error {
+	for _, s := range strings.Split(v, ",") {
+		if _, ok := colorNamesToHue[s]; !ok {
+			return fmt.Errorf("invalid color name: %s", s)
+		}
+	}
+	if len(v) == 0 {
+		return fmt.Errorf("value must not be empty")
 	}
 	return nil
 }

@@ -5,13 +5,16 @@ import (
 	"log"
 	"os"
 	"slices"
+	"sync/atomic"
 	"time"
 
 	"github.com/alessio-palumbo/hikari/cmd/hikari/command"
 	"github.com/alessio-palumbo/hikari/cmd/hikari/device"
+	"github.com/alessio-palumbo/hikari/cmd/hikari/input"
 	"github.com/alessio-palumbo/hikari/cmd/hikari/internal/version"
 	"github.com/alessio-palumbo/hikari/cmd/hikari/style"
 	ctrl "github.com/alessio-palumbo/lifxlan-go/pkg/controller"
+	"github.com/alessio-palumbo/lifxlan-go/pkg/protocol"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -59,6 +62,7 @@ const (
 // Bubble Tea messages
 type deviceUpdateMsg []ctrl.Device
 type msgSendDone struct{}
+type effectStopDone struct{}
 type tickMsg time.Time
 
 type model struct {
@@ -74,7 +78,8 @@ type model struct {
 	errMessage         string
 	lastUpdate         time.Time
 	spinner            spinner.Model
-	sending            bool
+	sending, stopping  bool
+	effectStoppers     map[ctrl.Serial]*atomic.Bool
 }
 
 func initialModel() model {
@@ -87,12 +92,13 @@ func initialModel() model {
 	s.Style = style.Spinner
 
 	return model{
-		state:         stateDeviceList,
-		deviceManager: c,
-		deviceList:    device.NewList(c.GetDevices()),
-		commandList:   command.NewList(),
-		lastUpdate:    time.Now(),
-		spinner:       s,
+		state:          stateDeviceList,
+		deviceManager:  c,
+		deviceList:     device.NewList(c.GetDevices()),
+		commandList:    command.NewList(),
+		lastUpdate:     time.Now(),
+		spinner:        s,
+		effectStoppers: make(map[ctrl.Serial]*atomic.Bool),
 	}
 }
 
@@ -156,6 +162,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.paramList = m.selectedCommand.NewParams()
 						m.state = stateParamList
 						return m, nil
+					case "waterfall_effect", "snake_effect":
+						if v, ok := m.effectStoppers[m.selectedDevice.Serial]; ok {
+							v.Store(true)
+							delete(m.effectStoppers, m.selectedDevice.Serial)
+							return m.stopEffectSpinner()
+						}
+						m.paramList = m.selectedCommand.NewParams()
+						m.state = stateParamList
+						return m, nil
 					}
 				}
 			case mappingInfo:
@@ -183,12 +198,26 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.paramList.SetItem(paramIndex, paramItem)
 				m.state = stateParamEdit
 			case mappingSend:
-				message, err := m.selectedCommand.Handler(command.ParamItemsFromModel(m.paramList)...)
-				if err != nil {
-					m.errMessage = err.Error()
-					return m, nil
+				switch m.selectedCommand.ID {
+				case "waterfall_effect", "snake_effect":
+					mProps := m.selectedDevice.MatrixProperties
+					send := func(msg *protocol.Message) error {
+						return m.deviceManager.Send(m.selectedDevice.Serial, msg)
+					}
+					stopped, err := m.selectedCommand.StartMatrixEffect(mProps, send, command.ParamItemsFromModel(m.paramList)...)
+					if err != nil {
+						m.errMessage = err.Error()
+						return m, nil
+					}
+					m.effectStoppers[m.selectedDevice.Serial] = stopped
+				default:
+					message, err := m.selectedCommand.Handler(command.ParamItemsFromModel(m.paramList)...)
+					if err != nil {
+						m.errMessage = err.Error()
+						return m, nil
+					}
+					m.deviceManager.Send(m.selectedDevice.Serial, message)
 				}
-				m.deviceManager.Send(m.selectedDevice.Serial, message)
 				return m.sendMessageSpinner()
 			case mappingBack, mappingBackAlt:
 				paramItem.SetEdit(false)
@@ -206,7 +235,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			switch msg.String() {
 			case mappingSelect, mappingSelectAlt:
-				val := paramItem.Input.Value()
+				var val string
+				switch paramItem.Type {
+				case input.InputText:
+					val = paramItem.Input.Value()
+				case input.InputSingleSelect:
+					val = paramItem.SingleInput.SelectedOption()
+				case input.InputMultiSelect:
+					val = paramItem.MultiInput.SelectedOptions()
+				}
+
 				if err := paramItem.SetValue(val); err != nil {
 					m.errMessage = err.Error()
 					return m, nil
@@ -215,12 +253,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case mappingBack, mappingBackAlt:
 				m.errMessage = ""
 				paramItem.SetEdit(false)
-				m.paramList.SetItem(paramIndex, paramItem)
 				m.state = stateParamList
 			default:
-				paramItem.Input, cmd = paramItem.Input.Update(msg)
-				m.paramList.SetItem(paramIndex, paramItem)
+				switch paramItem.Type {
+				case input.InputText:
+					paramItem.Input, cmd = paramItem.Input.Update(msg)
+				case input.InputSingleSelect:
+					paramItem.SingleInput, cmd = paramItem.SingleInput.Update(msg)
+				case input.InputMultiSelect:
+					paramItem.MultiInput, cmd = paramItem.MultiInput.Update(msg)
+				}
 			}
+			m.paramList.SetItem(paramIndex, paramItem)
 		}
 
 	case tea.WindowSizeMsg:
@@ -234,6 +278,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case msgSendDone:
 		m.sending = false
 		m.state = stateCommandList
+
+	case effectStopDone:
+		m.stopping = false
+		m.state = stateParamList
 
 	case tickMsg:
 		switch {
@@ -273,6 +321,16 @@ func (m model) sendMessageSpinner() (model, tea.Cmd) {
 		m.spinner.Tick,
 		tea.Tick(defaultSendMessageSpinner, func(time.Time) tea.Msg {
 			return msgSendDone{}
+		}),
+	)
+}
+
+func (m model) stopEffectSpinner() (model, tea.Cmd) {
+	m.stopping = true
+	return m, tea.Batch(
+		m.spinner.Tick,
+		tea.Tick(defaultSendMessageSpinner, func(time.Time) tea.Msg {
+			return effectStopDone{}
 		}),
 	)
 }
@@ -364,6 +422,9 @@ func (m model) renderError() string {
 func (m model) renderSpinner() string {
 	if m.sending {
 		return fmt.Sprint("\n\nSending... ", m.spinner.View())
+	}
+	if m.stopping {
+		return fmt.Sprint("\n\nStopping effect... ", m.spinner.View())
 	}
 	return ""
 }

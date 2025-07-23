@@ -49,7 +49,12 @@ func (i Item) Info() string {
 	if i.Type == ctrl.DeviceTypeSwitch {
 		title += " - (Switch)"
 	} else {
-		lightType = fmt.Sprintf("LightType: %s\n", i.LightType)
+		var extra string
+		if i.LightType == ctrl.LightTypeMatrix {
+			mProps := i.MatrixProperties
+			extra = fmt.Sprintf(" (H: %d, W: %d, ChainLength: %d)", mProps.Height, mProps.Width, mProps.ChainLength)
+		}
+		lightType = fmt.Sprintf("LightType: %s%s\n", i.LightType, extra)
 	}
 	content := fmt.Sprintf("%s\n\nSerial: %s\nIP: %s\n\nProductID: %d\nProductName: %s\n%sFirmware: %s\n\nLocation: %s\nGroup: %s",
 		style.ListSelected.BorderLeft(false).Render(title),
