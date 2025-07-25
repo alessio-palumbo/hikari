@@ -17,11 +17,7 @@ func NewInputSingleSelect(options []string) SingleSelectModel {
 	return SingleSelectModel{options: options}
 }
 
-func (m SingleSelectModel) Init() tea.Cmd {
-	return nil
-}
-
-func (m SingleSelectModel) Update(msg tea.Msg) (SingleSelectModel, tea.Cmd) {
+func (m SingleSelectModel) Update(msg tea.Msg) (Input, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -52,6 +48,6 @@ func (m SingleSelectModel) View() string {
 	return b.String()
 }
 
-func (m SingleSelectModel) SelectedOption() string {
+func (m SingleSelectModel) Value() string {
 	return m.options[m.cursor]
 }

@@ -1,5 +1,7 @@
 package input
 
+import tea "github.com/charmbracelet/bubbletea"
+
 type InputType int
 
 const (
@@ -7,3 +9,9 @@ const (
 	InputSingleSelect
 	InputMultiSelect
 )
+
+type Input interface {
+	Update(tea.Msg) (Input, tea.Cmd)
+	View() string
+	Value() string
+}

@@ -26,11 +26,7 @@ func NewMultiSelect(options []string) MultiSelectModel {
 	return MultiSelectModel{items: items}
 }
 
-func (m MultiSelectModel) Init() tea.Cmd {
-	return nil
-}
-
-func (m MultiSelectModel) Update(msg tea.Msg) (MultiSelectModel, tea.Cmd) {
+func (m MultiSelectModel) Update(msg tea.Msg) (Input, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -65,7 +61,7 @@ func (m MultiSelectModel) View() string {
 	return b.String()
 }
 
-func (m MultiSelectModel) SelectedOptions() string {
+func (m MultiSelectModel) Value() string {
 	var labels []string
 	for _, l := range m.items {
 		if l.Checked {

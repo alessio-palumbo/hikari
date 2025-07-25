@@ -12,7 +12,6 @@ import (
 	hlist "github.com/alessio-palumbo/hikari/cmd/hikari/list"
 	"github.com/alessio-palumbo/hikari/cmd/hikari/style"
 	"github.com/charmbracelet/bubbles/list"
-	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -40,7 +39,7 @@ var colorNamesToHue = map[string]uint16{
 // paramType defines a parameter for a command.
 type paramType struct {
 	Name        string
-	Type        input.InputType
+	InputType   input.InputType
 	Required    bool
 	Description string
 	Default     any
@@ -49,11 +48,9 @@ type paramType struct {
 
 type ParamItem struct {
 	*paramType
-	value       *string
-	Editing     bool
-	Input       textinput.Model
-	SingleInput input.SingleSelectModel
-	MultiInput  input.MultiSelectModel
+	value   *string
+	Editing bool
+	Input   input.Input
 }
 
 func (i ParamItem) FilterValue() string { return i.Name }
@@ -77,16 +74,7 @@ func (p ParamItem) GetValue() string {
 }
 
 func (p *ParamItem) SetValue() error {
-	var v string
-	switch p.Type {
-	case input.InputText:
-		v = p.Input.Value()
-	case input.InputSingleSelect:
-		v = p.SingleInput.SelectedOption()
-	case input.InputMultiSelect:
-		v = p.MultiInput.SelectedOptions()
-	}
-
+	v := p.Input.Value()
 	// Reset field if empty
 	if v == "" {
 		p.value = nil
@@ -102,41 +90,24 @@ func (p *ParamItem) SetValue() error {
 
 func (p *ParamItem) UpdateValue(msg tea.KeyMsg) tea.Cmd {
 	var cmd tea.Cmd
-	switch p.Type {
-	case input.InputText:
-		p.Input, cmd = p.Input.Update(msg)
-	case input.InputSingleSelect:
-		p.SingleInput, cmd = p.SingleInput.Update(msg)
-	case input.InputMultiSelect:
-		p.MultiInput, cmd = p.MultiInput.Update(msg)
-	}
-
+	p.Input, cmd = p.Input.Update(msg)
 	return cmd
 }
 
 func (p *ParamItem) SetEdit(v bool) {
 	if v {
 		p.Editing = true
-		switch p.Type {
+		switch p.InputType {
 		case input.InputText:
-			p.setEditInput()
+			p.Input = input.NewInputText(paramInputWidth, paramCharLimit, p.Description)
 		case input.InputSingleSelect:
-			p.SingleInput = input.NewInputSingleSelect(options)
+			p.Input = input.NewInputSingleSelect(options)
 		case input.InputMultiSelect:
-			p.MultiInput = input.NewMultiSelect(options)
+			p.Input = input.NewMultiSelect(options)
 		}
 		return
 	}
 	p.Editing = false
-}
-
-func (p *ParamItem) setEditInput() {
-	p.Input = textinput.New()
-	p.Input.Prompt = ""
-	p.Input.Width = paramInputWidth
-	p.Input.CharLimit = paramCharLimit
-	p.Input.Placeholder = p.Description
-	p.Input.Focus()
 }
 
 func ParamItemsFromModel(l list.Model) []ParamItem {
@@ -164,13 +135,11 @@ func newParamsList(params []paramType) list.Model {
 
 		var valueStr string
 		if item.Editing {
-			switch item.Type {
+			switch item.InputType {
 			case input.InputText:
 				str += item.Input.View()
-			case input.InputSingleSelect:
-				str = lipgloss.NewStyle().PaddingRight(11).Render(lipgloss.JoinHorizontal(lipgloss.Top, str, item.SingleInput.View()))
-			case input.InputMultiSelect:
-				str = lipgloss.NewStyle().PaddingRight(11).Render(lipgloss.JoinHorizontal(lipgloss.Top, str, item.MultiInput.View()))
+			case input.InputSingleSelect, input.InputMultiSelect:
+				str = lipgloss.NewStyle().PaddingRight(11).Render(lipgloss.JoinHorizontal(lipgloss.Top, str, item.Input.View()))
 			}
 		} else if v := item.GetValue(); v != "" {
 			valueStr = "[" + v + "]"
@@ -196,7 +165,7 @@ func newParamsList(params []paramType) list.Model {
 				if !item.Editing {
 					padding = paramInputWidth + 1 - len(valueStr)
 				}
-				editAction := style.ActionActive.PaddingLeft(padding).Render("[E]dit")
+				editAction := style.ActionActive.PaddingLeft(padding).Render("[E]dit ")
 				return style.ListSelected.Render(lipgloss.JoinHorizontal(lipgloss.Top, s[0], editAction, sendLabelStyle.Render("[S]end")))
 			}
 		}
@@ -290,7 +259,7 @@ func PositiveIntegerValidator(v string) error {
 }
 
 func ColorListValidator(v string) error {
-	for _, s := range strings.Split(v, ",") {
+	for s := range strings.SplitSeq(v, ",") {
 		if _, ok := colorNamesToHue[s]; !ok {
 			return fmt.Errorf("invalid color name: %s", s)
 		}

@@ -75,11 +75,11 @@ var commands = []Command{
 			return messages.SetColor(h, s, b, k, d, enums.LightWaveformLIGHTWAVEFORMSAW), err
 		},
 		ParamTypes: []paramType{
-			{Name: "hue", Type: input.InputText, Required: false, Description: "Hue (0-360)", Validator: HueValidator},
-			{Name: "saturation", Type: input.InputText, Required: false, Description: "Saturation (0-100)", Validator: PercentageValidator},
-			{Name: "brightness", Type: input.InputText, Required: false, Description: "Brightness (0-100)", Validator: PercentageValidator},
-			{Name: "kelvin", Type: input.InputText, Required: false, Description: "Kelvin (1500-9000)", Validator: KelvinValidator},
-			{Name: "duration", Type: input.InputText, Required: false, Description: "Transition seconds", Validator: DurationValidator},
+			{Name: "hue", InputType: input.InputText, Required: false, Description: "Hue (0-360)", Validator: HueValidator},
+			{Name: "saturation", InputType: input.InputText, Required: false, Description: "Saturation (0-100)", Validator: PercentageValidator},
+			{Name: "brightness", InputType: input.InputText, Required: false, Description: "Brightness (0-100)", Validator: PercentageValidator},
+			{Name: "kelvin", InputType: input.InputText, Required: false, Description: "Kelvin (1500-9000)", Validator: KelvinValidator},
+			{Name: "duration", InputType: input.InputText, Required: false, Description: "Transition seconds", Validator: DurationValidator},
 		},
 	},
 	{
@@ -110,8 +110,8 @@ var commands = []Command{
 			return messages.SetColor(nil, nil, b, nil, d, enums.LightWaveformLIGHTWAVEFORMSAW), nil
 		},
 		ParamTypes: []paramType{
-			{Name: "brightness", Type: input.InputText, Required: true, Description: "Brightness (0-100)", Validator: PercentageValidator},
-			{Name: "duration", Type: input.InputText, Required: false, Description: "Transition seconds", Validator: DurationValidator},
+			{Name: "brightness", InputType: input.InputText, Required: true, Description: "Brightness (0-100)", Validator: PercentageValidator},
+			{Name: "duration", InputType: input.InputText, Required: false, Description: "Transition seconds", Validator: DurationValidator},
 		},
 	},
 	{
@@ -127,7 +127,7 @@ var commands = []Command{
 			for _, p := range params {
 				if v := p.GetValue(); v != "" {
 					if p.Name == "colors" {
-						for _, c := range strings.Split(v, ",") {
+						for c := range strings.SplitSeq(v, ",") {
 							colors = append(colors, packets.LightHsbk{
 								Hue: colorNamesToHue[c], Saturation: math.MaxUint16, Brightness: math.MaxUint16, Kelvin: 3500,
 							})
@@ -156,10 +156,10 @@ var commands = []Command{
 			}, nil
 		},
 		ParamTypes: []paramType{
-			{Name: "mode", Type: input.InputText, Required: false, Description: "0-(No chain), 1-(Chain sequential), 2-(Chain synced)", Validator: EffectModeValidator},
-			{Name: "send_interval", Type: input.InputText, Required: false, Description: "Ms pause between transition", Validator: PositiveIntegerValidator},
-			{Name: "cycles", Type: input.InputText, Required: false, Description: "Times the animation runs for (0 = forever)", Validator: CyclesValidator},
-			{Name: "colors", Type: input.InputMultiSelect, Required: true, Description: "Colors of the waterfall", Validator: ColorListValidator},
+			{Name: "mode", InputType: input.InputText, Required: false, Description: "0-(No chain), 1-(Chain sequential), 2-(Chain synced)", Validator: EffectModeValidator},
+			{Name: "send_interval", InputType: input.InputText, Required: false, Description: "Ms pause between transition", Validator: PositiveIntegerValidator},
+			{Name: "cycles", InputType: input.InputText, Required: false, Description: "Times the animation runs for (0 = forever)", Validator: CyclesValidator},
+			{Name: "colors", InputType: input.InputMultiSelect, Required: true, Description: "Colors of the waterfall", Validator: ColorListValidator},
 		},
 	},
 	{
@@ -204,11 +204,11 @@ var commands = []Command{
 			}, nil
 		},
 		ParamTypes: []paramType{
-			{Name: "mode", Type: input.InputText, Required: false, Description: "0-(No chain), 1-(Chain sequential), 2-(Chain synced)", Validator: EffectModeValidator},
-			{Name: "send_interval", Type: input.InputText, Required: false, Description: "Ms pause between transition (default 100)", Validator: PositiveIntegerValidator},
-			{Name: "cycles", Type: input.InputText, Required: false, Description: "Times the animation runs for (0 = forever)", Validator: CyclesValidator},
-			{Name: "size", Type: input.InputText, Required: false, Description: "The size of the snake (default 4)", Validator: PositiveIntegerValidator},
-			{Name: "color", Type: input.InputSingleSelect, Required: true, Description: "Color of the snake", Validator: ColorListValidator},
+			{Name: "mode", InputType: input.InputText, Required: false, Description: "0-(No chain), 1-(Chain sequential), 2-(Chain synced)", Validator: EffectModeValidator},
+			{Name: "send_interval", InputType: input.InputText, Required: false, Description: "Ms pause between transition (default 100)", Validator: PositiveIntegerValidator},
+			{Name: "cycles", InputType: input.InputText, Required: false, Description: "Times the animation runs for (0 = forever)", Validator: CyclesValidator},
+			{Name: "size", InputType: input.InputText, Required: false, Description: "The size of the snake (default 4)", Validator: PositiveIntegerValidator},
+			{Name: "color", InputType: input.InputSingleSelect, Required: true, Description: "Color of the snake", Validator: ColorListValidator},
 		},
 	},
 }
