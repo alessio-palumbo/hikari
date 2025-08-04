@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/alessio-palumbo/hikari/cmd/hikari/input"
+	"github.com/alessio-palumbo/hikari/cmd/hikari/internal/utils"
 	hlist "github.com/alessio-palumbo/hikari/cmd/hikari/list"
 	"github.com/alessio-palumbo/hikari/cmd/hikari/style"
 	ctrl "github.com/alessio-palumbo/lifxlan-go/pkg/controller"
@@ -156,10 +157,10 @@ var commands = []Command{
 			}, nil
 		},
 		ParamTypes: []paramType{
-			{Name: "mode", InputType: input.InputText, Required: false, Description: "0-(No chain), 1-(Chain sequential), 2-(Chain synced)", Validator: EffectModeValidator},
+			{Name: "mode", InputType: input.InputSingleSelectInline, InputOptions: optionModes, Required: false, Description: "0-(No chain), 1-(Chain sequential), 2-(Chain synced)"},
 			{Name: "send_interval", InputType: input.InputText, Required: false, Description: "Ms pause between transition", Validator: PositiveIntegerValidator},
 			{Name: "cycles", InputType: input.InputText, Required: false, Description: "Times the animation runs for (0 = forever)", Validator: CyclesValidator},
-			{Name: "colors", InputType: input.InputMultiSelect, Required: true, Description: "Colors of the waterfall", Validator: ColorListValidator},
+			{Name: "colors", InputType: input.InputMultiSelect, InputOptions: optionColors, Required: true, Description: "Colors of the waterfall", Validator: ColorListValidator},
 		},
 	},
 	{
@@ -204,11 +205,11 @@ var commands = []Command{
 			}, nil
 		},
 		ParamTypes: []paramType{
-			{Name: "mode", InputType: input.InputText, Required: false, Description: "0-(No chain), 1-(Chain sequential), 2-(Chain synced)", Validator: EffectModeValidator},
+			{Name: "mode", InputType: input.InputSingleSelectInline, InputOptions: optionModes, Required: false, Description: "0-(No chain), 1-(Chain sequential), 2-(Chain synced)"},
 			{Name: "send_interval", InputType: input.InputText, Required: false, Description: "Ms pause between transition (default 100)", Validator: PositiveIntegerValidator},
 			{Name: "cycles", InputType: input.InputText, Required: false, Description: "Times the animation runs for (0 = forever)", Validator: CyclesValidator},
 			{Name: "size", InputType: input.InputText, Required: false, Description: "The size of the snake (default 4)", Validator: PositiveIntegerValidator},
-			{Name: "color", InputType: input.InputSingleSelect, Required: true, Description: "Color of the snake", Validator: ColorListValidator},
+			{Name: "color", InputType: input.InputSingleSelect, InputOptions: optionColors, Required: true, Description: "Color of the snake", Validator: ColorListValidator},
 		},
 	},
 }
@@ -256,7 +257,7 @@ func (i Item) StartMatrixEffect(mProps ctrl.MatrixProperties, send matrix.SendFu
 }
 
 func NewList() list.Model {
-	padFunc := rightPadder(commands, func(c Command) int { return len(c.Name) })
+	padFunc := utils.RightPadder(commands, func(c Command) int { return len(c.Name) })
 	renderFunc := func(w io.Writer, m list.Model, index int, listItem list.Item) {
 		item, ok := listItem.(Item)
 		if !ok {

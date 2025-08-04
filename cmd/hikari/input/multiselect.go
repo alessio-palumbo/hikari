@@ -4,8 +4,14 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/alessio-palumbo/hikari/cmd/hikari/internal/utils"
 	"github.com/alessio-palumbo/hikari/cmd/hikari/style"
 	tea "github.com/charmbracelet/bubbletea"
+)
+
+const (
+	unselectedCheckbox = "[ ]"
+	selectedCheckbox   = "[✔]"
 )
 
 type MultiSelectItem struct {
@@ -14,16 +20,19 @@ type MultiSelectItem struct {
 }
 
 type MultiSelectModel struct {
-	items  []MultiSelectItem
-	cursor int
+	items   []MultiSelectItem
+	cursor  int
+	padFunc func(string) string
+	width   int
 }
 
-func NewMultiSelect(options []string) MultiSelectModel {
+func NewMultiSelect(options []string, width int) MultiSelectModel {
+	padFunc := utils.RightPadder(options, func(o string) int { return len(o) }, width-len(unselectedCheckbox))
 	items := make([]MultiSelectItem, len(options))
 	for i, opt := range options {
 		items[i] = MultiSelectItem{Label: opt}
 	}
-	return MultiSelectModel{items: items}
+	return MultiSelectModel{items: items, padFunc: padFunc, width: width}
 }
 
 func (m MultiSelectModel) Update(msg tea.Msg) (Input, tea.Cmd) {
@@ -48,15 +57,15 @@ func (m MultiSelectModel) Update(msg tea.Msg) (Input, tea.Cmd) {
 func (m MultiSelectModel) View() string {
 	var b strings.Builder
 	for i, item := range m.items {
-		checkbox := "[ ]"
+		checkbox := unselectedCheckbox
 		if item.Checked {
-			checkbox = "[✔]"
+			checkbox = selectedCheckbox
 		}
 		fn := style.ActionActive.Render
 		if m.cursor == i {
 			fn = style.ActionSelected.Render
 		}
-		fmt.Fprintf(&b, "%s %s\n", fn(checkbox), fn(item.Label))
+		fmt.Fprintln(&b, fn(checkbox, m.padFunc(item.Label)))
 	}
 	return b.String()
 }

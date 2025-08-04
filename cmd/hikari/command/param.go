@@ -1,14 +1,13 @@
 package command
 
 import (
-	"cmp"
 	"fmt"
 	"io"
-	"slices"
 	"strings"
 	"time"
 
 	"github.com/alessio-palumbo/hikari/cmd/hikari/input"
+	"github.com/alessio-palumbo/hikari/cmd/hikari/internal/utils"
 	hlist "github.com/alessio-palumbo/hikari/cmd/hikari/list"
 	"github.com/alessio-palumbo/hikari/cmd/hikari/style"
 	"github.com/charmbracelet/bubbles/list"
@@ -23,7 +22,10 @@ const (
 	paramCharLimit  = 5
 )
 
-var options = []string{"red", "orange", "green", "yellow", "cyan", "blue", "magenta", "purple"}
+var (
+	optionModes  = []string{"single", "multi_sequential", "multi_synced"}
+	optionColors = []string{"red", "orange", "green", "yellow", "cyan", "blue", "magenta", "purple"}
+)
 
 var colorNamesToHue = map[string]uint16{
 	"red":     0,     // 0°
@@ -38,12 +40,13 @@ var colorNamesToHue = map[string]uint16{
 
 // paramType defines a parameter for a command.
 type paramType struct {
-	Name        string
-	InputType   input.InputType
-	Required    bool
-	Description string
-	Default     any
-	Validator   func(value string) error
+	Name         string
+	InputType    input.InputType
+	InputOptions []string
+	Required     bool
+	Description  string
+	Default      any
+	Validator    func(value string) error
 }
 
 type ParamItem struct {
@@ -101,9 +104,11 @@ func (p *ParamItem) SetEdit(v bool) {
 		case input.InputText:
 			p.Input = input.NewInputText(paramInputWidth, paramCharLimit, p.Description)
 		case input.InputSingleSelect:
-			p.Input = input.NewInputSingleSelect(options)
+			p.Input = input.NewInputSingleSelect(p.InputOptions, paramInputWidth)
+		case input.InputSingleSelectInline:
+			p.Input = input.NewInputSingleSelectInline(p.InputOptions, paramInputWidth)
 		case input.InputMultiSelect:
-			p.Input = input.NewMultiSelect(options)
+			p.Input = input.NewMultiSelect(p.InputOptions, paramInputWidth)
 		}
 		return
 	}
@@ -120,7 +125,7 @@ func ParamItemsFromModel(l list.Model) []ParamItem {
 }
 
 func newParamsList(params []paramType) list.Model {
-	padFunc := rightPadder(params, func(p paramType) int { return len(p.Name) })
+	padFunc := utils.RightPadder(params, func(p paramType) int { return len(p.Name) })
 	renderFunc := func(w io.Writer, m list.Model, index int, listItem list.Item) {
 		item, ok := listItem.(ParamItem)
 		if !ok {
@@ -138,8 +143,10 @@ func newParamsList(params []paramType) list.Model {
 			switch item.InputType {
 			case input.InputText:
 				str += item.Input.View()
+			case input.InputSingleSelectInline:
+				str += item.Input.View()
 			case input.InputSingleSelect, input.InputMultiSelect:
-				str = lipgloss.NewStyle().PaddingRight(11).Render(lipgloss.JoinHorizontal(lipgloss.Top, str, item.Input.View()))
+				str = lipgloss.NewStyle().Render(lipgloss.JoinHorizontal(lipgloss.Top, str, item.Input.View()))
 			}
 		} else if v := item.GetValue(); v != "" {
 			valueStr = "[" + v + "]"
@@ -163,6 +170,7 @@ func newParamsList(params []paramType) list.Model {
 			fn = func(s ...string) string {
 				var padding int
 				if !item.Editing {
+					// Add an extra padding to cater for style.ListSelected applied left-padding.
 					padding = paramInputWidth + 1 - len(valueStr)
 				}
 				editAction := style.ActionActive.PaddingLeft(padding).Render("[E]dit ")
@@ -268,14 +276,4 @@ func ColorListValidator(v string) error {
 		return fmt.Errorf("value must not be empty")
 	}
 	return nil
-}
-
-func rightPadder[S ~[]E, E any](ss S, lenFunc func(E) int) func(s string) string {
-	longest := slices.MaxFunc(ss, func(a, b E) int {
-		return cmp.Compare(lenFunc(a), lenFunc(b))
-	})
-	maxPadding := lenFunc(longest) + defaultPadding
-	return func(s string) string {
-		return fmt.Sprintf("%-*s", maxPadding, s)
-	}
 }

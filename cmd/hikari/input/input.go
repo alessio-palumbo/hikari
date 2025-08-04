@@ -7,6 +7,7 @@ type InputType int
 const (
 	InputText InputType = iota
 	InputSingleSelect
+	InputSingleSelectInline
 	InputMultiSelect
 )
 
