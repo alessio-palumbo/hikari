@@ -26,6 +26,7 @@ var commands = []Command{
 	{
 		ID:          "power_on",
 		Name:        "Power On",
+		Type:        CommandTypeSetter,
 		Description: "Turn the device on",
 		Handler: func(params ...ParamItem) (*protocol.Message, error) {
 			return messages.SetPowerOn(), nil
@@ -35,6 +36,7 @@ var commands = []Command{
 	{
 		ID:          "power_off",
 		Name:        "Power Off",
+		Type:        CommandTypeSetter,
 		Description: "Turn the device off",
 		Handler: func(params ...ParamItem) (*protocol.Message, error) {
 			return messages.SetPowerOff(), nil
@@ -44,6 +46,7 @@ var commands = []Command{
 	{
 		ID:          "set_color",
 		Name:        "Set Color",
+		Type:        CommandTypeSetter,
 		Description: "Change device color (HSB + Kelvin)",
 		Handler: func(params ...ParamItem) (*protocol.Message, error) {
 			var (
@@ -86,6 +89,7 @@ var commands = []Command{
 	{
 		ID:          "set_brightness",
 		Name:        "Set Brightness",
+		Type:        CommandTypeSetter,
 		Description: "Adjust device brightness",
 		Handler: func(params ...ParamItem) (*protocol.Message, error) {
 			var (
@@ -118,6 +122,7 @@ var commands = []Command{
 	{
 		ID:          "waterfall_effect",
 		Name:        "Waterfall Effect",
+		Type:        CommandTypeEffect,
 		Description: "Apply given colors sequentially row by row",
 		MatrixEffectHandler: func(m *matrix.Matrix, send matrix.SendFunc, params ...ParamItem) (func() error, error) {
 			var (
@@ -164,8 +169,58 @@ var commands = []Command{
 		},
 	},
 	{
+		ID:          "rockets_effect",
+		Name:        "Rockets Effect",
+		Type:        CommandTypeEffect,
+		Description: "Apply colors to a single pixel row by row",
+		MatrixEffectHandler: func(m *matrix.Matrix, send matrix.SendFunc, params ...ParamItem) (func() error, error) {
+			var (
+				mode, intervalMs, cycles int64 = 0, 100, 0
+				colors                   []packets.LightHsbk
+			)
+
+			for _, p := range params {
+				if v := p.GetValue(); v != "" {
+					if p.Name == "colors" {
+						for c := range strings.SplitSeq(v, ",") {
+							colors = append(colors, packets.LightHsbk{
+								Hue: colorNamesToHue[c], Saturation: math.MaxUint16, Brightness: math.MaxUint16, Kelvin: 3500,
+							})
+						}
+						continue
+					}
+
+					vv, err := parseInt64Input(v)
+					if err != nil {
+						return nil, err
+					}
+
+					switch p.Name {
+					case "mode":
+						mode = *vv
+					case "send_interval":
+						intervalMs = *vv
+					case "cycles":
+						cycles = *vv
+					}
+				}
+			}
+
+			return func() error {
+				return matrix.Rockets(m, send, intervalMs, int(cycles), matrix.ParseChainMode(int(mode)), colors...)
+			}, nil
+		},
+		ParamTypes: []paramType{
+			{Name: "mode", InputType: input.InputSingleSelectInline, InputOptions: optionModes, Required: false, Description: "0-(No chain), 1-(Chain sequential), 2-(Chain synced)"},
+			{Name: "send_interval", InputType: input.InputText, Required: false, Description: "Ms pause between transition", Validator: PositiveIntegerValidator},
+			{Name: "cycles", InputType: input.InputText, Required: false, Description: "Times the animation runs for (0 = forever)", Validator: CyclesValidator},
+			{Name: "colors", InputType: input.InputMultiSelect, InputOptions: optionColors, Required: true, Description: "Colors of the rocket", Validator: ColorListValidator},
+		},
+	},
+	{
 		ID:          "snake_effect",
 		Name:        "Snake Effect",
+		Type:        CommandTypeEffect,
 		Description: "Simulate a slithering snake",
 		MatrixEffectHandler: func(m *matrix.Matrix, send matrix.SendFunc, params ...ParamItem) (func() error, error) {
 			var (
@@ -212,12 +267,120 @@ var commands = []Command{
 			{Name: "color", InputType: input.InputSingleSelect, InputOptions: optionColors, Required: true, Description: "Color of the snake", Validator: ColorListValidator},
 		},
 	},
+	{
+		ID:          "worm_effect",
+		Name:        "Worm Effect",
+		Type:        CommandTypeEffect,
+		Description: "Simulate a crawling worm",
+		MatrixEffectHandler: func(m *matrix.Matrix, send matrix.SendFunc, params ...ParamItem) (func() error, error) {
+			var (
+				mode, intervalMs, cycles, size int64 = 0, 100, 0, 4
+				color                          packets.LightHsbk
+			)
+
+			for _, p := range params {
+				if v := p.GetValue(); v != "" {
+					if p.Name == "color" {
+						color = packets.LightHsbk{
+							Hue: colorNamesToHue[v], Saturation: math.MaxUint16, Brightness: math.MaxUint16, Kelvin: 3500,
+						}
+						continue
+					}
+
+					vv, err := parseInt64Input(v)
+					if err != nil {
+						return nil, err
+					}
+
+					switch p.Name {
+					case "mode":
+						mode = *vv
+					case "send_interval":
+						intervalMs = *vv
+					case "cycles":
+						cycles = *vv
+					case "size":
+						size = *vv
+					}
+				}
+			}
+
+			return func() error {
+				return matrix.Worm(m, send, intervalMs, int(cycles), matrix.ParseChainMode(int(mode)), int(size), color)
+			}, nil
+		},
+		ParamTypes: []paramType{
+			{Name: "mode", InputType: input.InputSingleSelectInline, InputOptions: optionModes, Required: false, Description: "0-(No chain), 1-(Chain sequential), 2-(Chain synced)"},
+			{Name: "send_interval", InputType: input.InputText, Required: false, Description: "Ms pause between transition (default 100)", Validator: PositiveIntegerValidator},
+			{Name: "cycles", InputType: input.InputText, Required: false, Description: "Times the animation runs for (0 = forever)", Validator: CyclesValidator},
+			{Name: "size", InputType: input.InputText, Required: false, Description: "The size of the snake (default 4)", Validator: PositiveIntegerValidator},
+			{Name: "color", InputType: input.InputSingleSelect, InputOptions: optionColors, Required: true, Description: "Color of the worm", Validator: ColorListValidator},
+		},
+	},
+	{
+		ID:          "concentric_frames_effect",
+		Name:        "Concentric Frames Effect",
+		Type:        CommandTypeEffect,
+		Description: "Iterates according to the given direction drawing frames of variadic sizes",
+		MatrixEffectHandler: func(m *matrix.Matrix, send matrix.SendFunc, params ...ParamItem) (func() error, error) {
+			var (
+				mode, intervalMs, cycles, direction int64 = 0, 200, 0, 0
+				color                               *packets.LightHsbk
+			)
+
+			for _, p := range params {
+				if v := p.GetValue(); v != "" {
+					if p.Name == "color" {
+						color = &packets.LightHsbk{
+							Hue: colorNamesToHue[v], Saturation: math.MaxUint16, Brightness: math.MaxUint16, Kelvin: 3500,
+						}
+						continue
+					}
+
+					vv, err := parseInt64Input(v)
+					if err != nil {
+						return nil, err
+					}
+
+					switch p.Name {
+					case "mode":
+						mode = *vv
+					case "send_interval":
+						intervalMs = *vv
+					case "cycles":
+						cycles = *vv
+					case "direction":
+						direction = *vv
+					}
+				}
+			}
+
+			return func() error {
+				return matrix.ConcentricFrames(m, send, intervalMs, int(cycles), matrix.ParseChainMode(int(mode)), matrix.ParseAnimationDirection(int(direction)), color)
+			}, nil
+		},
+		ParamTypes: []paramType{
+			{Name: "mode", InputType: input.InputSingleSelectInline, InputOptions: optionModes, Required: false, Description: "0-(No chain), 1-(Chain sequential), 2-(Chain synced)"},
+			{Name: "send_interval", InputType: input.InputText, Required: false, Description: "Ms pause between transition (default 100)", Validator: PositiveIntegerValidator},
+			{Name: "cycles", InputType: input.InputText, Required: false, Description: "Times the animation runs for (0 = forever)", Validator: CyclesValidator},
+			{Name: "direction", InputType: input.InputSingleSelect, InputOptions: directionAnimations, Required: false, Description: "The direction of the animation"},
+			{Name: "color", InputType: input.InputSingleSelect, InputOptions: optionColors, Required: false, Description: "Color of the frames", Validator: ColorListValidator},
+		},
+	},
 }
+
+type commandType int
+
+const (
+	CommandTypeSetter commandType = iota
+	CommandTypeEffect
+)
 
 // Command represents a backend command with metadata
 type Command struct {
 	ID                  string
 	Name                string
+	Type                commandType
 	Description         string
 	Handler             func(args ...ParamItem) (*protocol.Message, error)
 	MatrixEffectHandler func(m *matrix.Matrix, send matrix.SendFunc, args ...ParamItem) (func() error, error)

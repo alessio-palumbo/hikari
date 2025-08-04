@@ -162,15 +162,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.paramList = m.selectedCommand.NewParams()
 						m.state = stateParamList
 						return m, nil
-					case "waterfall_effect", "snake_effect":
-						if v, ok := m.effectStoppers[m.selectedDevice.Serial]; ok {
-							v.Store(true)
-							delete(m.effectStoppers, m.selectedDevice.Serial)
-							return m.stopEffectSpinner()
+					default:
+						if m.selectedCommand.Type == command.CommandTypeEffect {
+							if v, ok := m.effectStoppers[m.selectedDevice.Serial]; ok {
+								v.Store(true)
+								delete(m.effectStoppers, m.selectedDevice.Serial)
+								return m.stopEffectSpinner()
+							}
+							m.paramList = m.selectedCommand.NewParams()
+							m.state = stateParamList
+							return m, nil
 						}
-						m.paramList = m.selectedCommand.NewParams()
-						m.state = stateParamList
-						return m, nil
 					}
 				}
 			case mappingInfo:
@@ -198,8 +200,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.paramList.SetItem(paramIndex, paramItem)
 				m.state = stateParamEdit
 			case mappingSend:
-				switch m.selectedCommand.ID {
-				case "waterfall_effect", "snake_effect":
+				switch m.selectedCommand.Type {
+				case command.CommandTypeEffect:
 					mProps := m.selectedDevice.MatrixProperties
 					send := func(msg *protocol.Message) error {
 						return m.deviceManager.Send(m.selectedDevice.Serial, msg)

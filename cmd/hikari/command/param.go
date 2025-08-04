@@ -23,8 +23,9 @@ const (
 )
 
 var (
-	optionModes  = []string{"single", "multi_sequential", "multi_synced"}
-	optionColors = []string{"red", "orange", "green", "yellow", "cyan", "blue", "magenta", "purple"}
+	optionModes         = []string{"single", "multi_sequential", "multi_synced"}
+	optionColors        = []string{"red", "orange", "green", "yellow", "cyan", "blue", "magenta", "purple"}
+	directionAnimations = []string{"inwards", "outwards", "in-out", "out-in"}
 )
 
 var colorNamesToHue = map[string]uint16{
