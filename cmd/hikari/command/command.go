@@ -13,7 +13,7 @@ import (
 	"github.com/alessio-palumbo/hikari/cmd/hikari/internal/utils"
 	hlist "github.com/alessio-palumbo/hikari/cmd/hikari/list"
 	"github.com/alessio-palumbo/hikari/cmd/hikari/style"
-	ctrl "github.com/alessio-palumbo/lifxlan-go/pkg/controller"
+	ldevice "github.com/alessio-palumbo/lifxlan-go/pkg/device"
 	"github.com/alessio-palumbo/lifxlan-go/pkg/matrix"
 	"github.com/alessio-palumbo/lifxlan-go/pkg/messages"
 	"github.com/alessio-palumbo/lifxlan-go/pkg/protocol"
@@ -242,7 +242,7 @@ func (i Item) NewParams() list.Model {
 
 // StartMatrixEffect starts a matrix effect in a goroutine and returns handle to stop the effect.
 // If validation fails it returns an error.
-func (i Item) StartMatrixEffect(mProps ctrl.MatrixProperties, send matrix.SendFunc, args ...ParamItem) (*atomic.Bool, error) {
+func (i Item) StartMatrixEffect(mProps ldevice.MatrixProperties, send matrix.SendFunc, args ...ParamItem) (*atomic.Bool, error) {
 	m := matrix.New(int(mProps.Width), int(mProps.Height), int(mProps.ChainLength))
 	sender, stopped := matrix.SendWithStop(send)
 	f, err := i.MatrixEffectHandler(m, sender, args...)

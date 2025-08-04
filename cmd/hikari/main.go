@@ -13,6 +13,7 @@ import (
 	"github.com/alessio-palumbo/hikari/cmd/hikari/internal/version"
 	"github.com/alessio-palumbo/hikari/cmd/hikari/style"
 	ctrl "github.com/alessio-palumbo/lifxlan-go/pkg/controller"
+	ldevice "github.com/alessio-palumbo/lifxlan-go/pkg/device"
 	"github.com/alessio-palumbo/lifxlan-go/pkg/protocol"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -59,7 +60,7 @@ const (
 )
 
 // Bubble Tea messages
-type deviceUpdateMsg []ctrl.Device
+type deviceUpdateMsg []ldevice.Device
 type msgSendDone struct{}
 type effectStopDone struct{}
 type tickMsg time.Time
@@ -78,7 +79,7 @@ type model struct {
 	lastUpdate         time.Time
 	spinner            spinner.Model
 	sending, stopping  bool
-	effectStoppers     map[ctrl.Serial]*atomic.Bool
+	effectStoppers     map[ldevice.Serial]*atomic.Bool
 }
 
 func initialModel() model {
@@ -97,7 +98,7 @@ func initialModel() model {
 		commandList:    command.NewList(),
 		lastUpdate:     time.Now(),
 		spinner:        s,
-		effectStoppers: make(map[ctrl.Serial]*atomic.Bool),
+		effectStoppers: make(map[ldevice.Serial]*atomic.Bool),
 	}
 }
 
@@ -254,7 +255,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.deviceList.SetHeight(msg.Height - 4)
 
 	case deviceUpdateMsg:
-		cmd = m.updateDeviceList([]ctrl.Device(msg))
+		cmd = m.updateDeviceList([]ldevice.Device(msg))
 		m.lastUpdate = time.Now()
 
 	case msgSendDone:
@@ -318,8 +319,8 @@ func (m model) stopEffectSpinner() (model, tea.Cmd) {
 }
 
 // updateDeviceList updates the list of devices and keeps the current selection.
-func (m *model) updateDeviceList(devices []ctrl.Device) tea.Cmd {
-	var selectedSerial ctrl.Serial
+func (m *model) updateDeviceList(devices []ldevice.Device) tea.Cmd {
+	var selectedSerial ldevice.Serial
 	if selectedItem, ok := m.deviceList.SelectedItem().(device.Item); ok {
 		selectedSerial = selectedItem.Serial
 	}
