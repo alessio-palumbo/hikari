@@ -49,34 +49,11 @@ var commands = []Command{
 		Type:        CommandTypeSetter,
 		Description: "Change device color (HSB + Kelvin)",
 		Handler: func(params ...ParamItem) (*protocol.Message, error) {
-			var (
-				h, s, b *float64
-				k       *uint16
-				d       time.Duration
-				err     error
-			)
-
-			for _, p := range params {
-				if v := p.GetValue(); v != "" {
-					switch p.Name {
-					case "hue":
-						h, err = parseFloat64Input(v)
-					case "saturation":
-						s, err = parseFloat64Input(v)
-					case "brightness":
-						b, err = parseFloat64Input(v)
-					case "kelvin":
-						k, err = parseUint16Input(v)
-					case "duration":
-						d, err = parseDurationInput(v)
-					}
-					if err != nil {
-						return nil, err
-					}
-				}
+			if err := ValidateRequired(params...); err != nil {
+				return nil, err
 			}
-
-			return messages.SetColor(h, s, b, k, d, enums.LightWaveformLIGHTWAVEFORMSAW), err
+			return messages.SetColor(SetParamValue[*float64](params[0]), SetParamValue[*float64](params[1]), SetParamValue[*float64](params[2]),
+				SetParamValue[*uint16](params[3]), SetParamValue[time.Duration](params[4]), enums.LightWaveformLIGHTWAVEFORMSAW), nil
 		},
 		ParamTypes: []paramType{
 			{Name: "hue", InputType: input.InputText, Required: false, Description: "Hue (0-360)", Validator: HueValidator},
@@ -92,27 +69,12 @@ var commands = []Command{
 		Type:        CommandTypeSetter,
 		Description: "Adjust device brightness",
 		Handler: func(params ...ParamItem) (*protocol.Message, error) {
-			var (
-				b   *float64
-				d   time.Duration
-				err error
-			)
-
-			for _, p := range params {
-				if v := p.GetValue(); v != "" {
-					switch p.Name {
-					case "brightness":
-						b, err = parseFloat64Input(v)
-					case "duration":
-						d, err = parseDurationInput(v)
-					}
-					if err != nil {
-						return nil, err
-					}
-				}
+			if err := ValidateRequired(params...); err != nil {
+				return nil, err
 			}
-
-			return messages.SetColor(nil, nil, b, nil, d, enums.LightWaveformLIGHTWAVEFORMSAW), nil
+			return messages.SetColor(nil, nil, SetParamValue[*float64](params[0]), nil,
+				SetParamValue[time.Duration](params[1]), enums.LightWaveformLIGHTWAVEFORMSAW,
+			), nil
 		},
 		ParamTypes: []paramType{
 			{Name: "brightness", InputType: input.InputText, Required: true, Description: "Brightness (0-100)", Validator: PercentageValidator},
@@ -125,45 +87,31 @@ var commands = []Command{
 		Type:        CommandTypeEffect,
 		Description: "Apply given colors sequentially row by row",
 		MatrixEffectHandler: func(m *matrix.Matrix, send matrix.SendFunc, params ...ParamItem) (func() error, error) {
-			var (
-				mode, intervalMs, cycles int64 = 0, 100, 0
-				colors                   []packets.LightHsbk
-			)
+			if err := ValidateRequired(params...); err != nil {
+				return nil, err
+			}
 
-			for _, p := range params {
-				if v := p.GetValue(); v != "" {
-					if p.Name == "colors" {
-						for c := range strings.SplitSeq(v, ",") {
-							colors = append(colors, packets.LightHsbk{
-								Hue: colorNamesToHue[c], Saturation: math.MaxUint16, Brightness: math.MaxUint16, Kelvin: 3500,
-							})
-						}
-						continue
-					}
-
-					vv, err := parseInt64Input(v)
-					if err != nil {
-						return nil, err
-					}
-
-					switch p.Name {
-					case "mode":
-						mode = *vv
-					case "send_interval":
-						intervalMs = *vv
-					case "cycles":
-						cycles = *vv
-					}
-				}
+			var colors []packets.LightHsbk
+			for c := range strings.SplitSeq(SetParamValue[string](params[3]), ",") {
+				colors = append(colors, packets.LightHsbk{
+					Hue: colorNamesToHue[c], Saturation: math.MaxUint16, Brightness: math.MaxUint16, Kelvin: 3500,
+				})
 			}
 
 			return func() error {
-				return matrix.Waterfall(m, send, intervalMs, int(cycles), matrix.ParseChainMode(int(mode)), colors...)
+				return matrix.Waterfall(
+					m,
+					send,
+					SetParamValue[int64](params[1]),
+					SetParamValue[int](params[2]),
+					matrix.ParseChainMode(SetParamValue[int](params[0])),
+					colors...,
+				)
 			}, nil
 		},
 		ParamTypes: []paramType{
 			{Name: "mode", InputType: input.InputSingleSelectInline, InputOptions: optionModes, Required: false, Description: "0-(No chain), 1-(Chain sequential), 2-(Chain synced)"},
-			{Name: "send_interval", InputType: input.InputText, Required: false, Description: "Ms pause between transition", Validator: PositiveIntegerValidator},
+			{Name: "send_interval", InputType: input.InputText, Required: false, Description: "Ms pause between transition", Validator: PositiveIntegerValidator, Default: int64(100)},
 			{Name: "cycles", InputType: input.InputText, Required: false, Description: "Times the animation runs for (0 = forever)", Validator: CyclesValidator},
 			{Name: "colors", InputType: input.InputMultiSelect, InputOptions: optionColors, Required: true, Description: "Colors of the waterfall", Validator: ColorListValidator},
 		},
@@ -174,45 +122,31 @@ var commands = []Command{
 		Type:        CommandTypeEffect,
 		Description: "Apply colors to a single pixel row by row",
 		MatrixEffectHandler: func(m *matrix.Matrix, send matrix.SendFunc, params ...ParamItem) (func() error, error) {
-			var (
-				mode, intervalMs, cycles int64 = 0, 100, 0
-				colors                   []packets.LightHsbk
-			)
+			if err := ValidateRequired(params...); err != nil {
+				return nil, err
+			}
 
-			for _, p := range params {
-				if v := p.GetValue(); v != "" {
-					if p.Name == "colors" {
-						for c := range strings.SplitSeq(v, ",") {
-							colors = append(colors, packets.LightHsbk{
-								Hue: colorNamesToHue[c], Saturation: math.MaxUint16, Brightness: math.MaxUint16, Kelvin: 3500,
-							})
-						}
-						continue
-					}
-
-					vv, err := parseInt64Input(v)
-					if err != nil {
-						return nil, err
-					}
-
-					switch p.Name {
-					case "mode":
-						mode = *vv
-					case "send_interval":
-						intervalMs = *vv
-					case "cycles":
-						cycles = *vv
-					}
-				}
+			var colors []packets.LightHsbk
+			for c := range strings.SplitSeq(SetParamValue[string](params[3]), ",") {
+				colors = append(colors, packets.LightHsbk{
+					Hue: colorNamesToHue[c], Saturation: math.MaxUint16, Brightness: math.MaxUint16, Kelvin: 3500,
+				})
 			}
 
 			return func() error {
-				return matrix.Rockets(m, send, intervalMs, int(cycles), matrix.ParseChainMode(int(mode)), colors...)
+				return matrix.Rockets(
+					m,
+					send,
+					SetParamValue[int64](params[1]),
+					SetParamValue[int](params[2]),
+					matrix.ParseChainMode(SetParamValue[int](params[0])),
+					colors...,
+				)
 			}, nil
 		},
 		ParamTypes: []paramType{
 			{Name: "mode", InputType: input.InputSingleSelectInline, InputOptions: optionModes, Required: false, Description: "0-(No chain), 1-(Chain sequential), 2-(Chain synced)"},
-			{Name: "send_interval", InputType: input.InputText, Required: false, Description: "Ms pause between transition", Validator: PositiveIntegerValidator},
+			{Name: "send_interval", InputType: input.InputText, Required: false, Description: "Ms pause between transition", Validator: PositiveIntegerValidator, Default: int64(100)},
 			{Name: "cycles", InputType: input.InputText, Required: false, Description: "Times the animation runs for (0 = forever)", Validator: CyclesValidator},
 			{Name: "colors", InputType: input.InputMultiSelect, InputOptions: optionColors, Required: true, Description: "Colors of the rocket", Validator: ColorListValidator},
 		},
@@ -223,47 +157,29 @@ var commands = []Command{
 		Type:        CommandTypeEffect,
 		Description: "Simulate a slithering snake",
 		MatrixEffectHandler: func(m *matrix.Matrix, send matrix.SendFunc, params ...ParamItem) (func() error, error) {
-			var (
-				mode, intervalMs, cycles, size int64 = 0, 100, 0, 4
-				color                          packets.LightHsbk
-			)
-
-			for _, p := range params {
-				if v := p.GetValue(); v != "" {
-					if p.Name == "color" {
-						color = packets.LightHsbk{
-							Hue: colorNamesToHue[v], Saturation: math.MaxUint16, Brightness: math.MaxUint16, Kelvin: 3500,
-						}
-						continue
-					}
-
-					vv, err := parseInt64Input(v)
-					if err != nil {
-						return nil, err
-					}
-
-					switch p.Name {
-					case "mode":
-						mode = *vv
-					case "send_interval":
-						intervalMs = *vv
-					case "cycles":
-						cycles = *vv
-					case "size":
-						size = *vv
-					}
-				}
+			if err := ValidateRequired(params...); err != nil {
+				return nil, err
 			}
 
 			return func() error {
-				return matrix.Snake(m, send, intervalMs, int(cycles), matrix.ParseChainMode(int(mode)), int(size), color)
+				return matrix.Snake(
+					m,
+					send,
+					SetParamValue[int64](params[1]),
+					SetParamValue[int](params[2]),
+					matrix.ParseChainMode(SetParamValue[int](params[0])),
+					SetParamValue[int](params[3]),
+					packets.LightHsbk{
+						Hue: colorNamesToHue[SetParamValue[string](params[4])], Saturation: math.MaxUint16, Brightness: math.MaxUint16, Kelvin: 3500,
+					},
+				)
 			}, nil
 		},
 		ParamTypes: []paramType{
 			{Name: "mode", InputType: input.InputSingleSelectInline, InputOptions: optionModes, Required: false, Description: "0-(No chain), 1-(Chain sequential), 2-(Chain synced)"},
-			{Name: "send_interval", InputType: input.InputText, Required: false, Description: "Ms pause between transition (default 100)", Validator: PositiveIntegerValidator},
+			{Name: "send_interval", InputType: input.InputText, Required: false, Description: "Ms pause between transition (default 100)", Validator: PositiveIntegerValidator, Default: int64(100)},
 			{Name: "cycles", InputType: input.InputText, Required: false, Description: "Times the animation runs for (0 = forever)", Validator: CyclesValidator},
-			{Name: "size", InputType: input.InputText, Required: false, Description: "The size of the snake (default 4)", Validator: PositiveIntegerValidator},
+			{Name: "size", InputType: input.InputText, Required: false, Description: "The size of the snake (default 4)", Validator: PositiveIntegerValidator, Default: 4},
 			{Name: "color", InputType: input.InputSingleSelect, InputOptions: optionColors, Required: true, Description: "Color of the snake", Validator: ColorListValidator},
 		},
 	},
@@ -273,47 +189,29 @@ var commands = []Command{
 		Type:        CommandTypeEffect,
 		Description: "Simulate a crawling worm",
 		MatrixEffectHandler: func(m *matrix.Matrix, send matrix.SendFunc, params ...ParamItem) (func() error, error) {
-			var (
-				mode, intervalMs, cycles, size int64 = 0, 100, 0, 4
-				color                          packets.LightHsbk
-			)
-
-			for _, p := range params {
-				if v := p.GetValue(); v != "" {
-					if p.Name == "color" {
-						color = packets.LightHsbk{
-							Hue: colorNamesToHue[v], Saturation: math.MaxUint16, Brightness: math.MaxUint16, Kelvin: 3500,
-						}
-						continue
-					}
-
-					vv, err := parseInt64Input(v)
-					if err != nil {
-						return nil, err
-					}
-
-					switch p.Name {
-					case "mode":
-						mode = *vv
-					case "send_interval":
-						intervalMs = *vv
-					case "cycles":
-						cycles = *vv
-					case "size":
-						size = *vv
-					}
-				}
+			if err := ValidateRequired(params...); err != nil {
+				return nil, err
 			}
 
 			return func() error {
-				return matrix.Worm(m, send, intervalMs, int(cycles), matrix.ParseChainMode(int(mode)), int(size), color)
+				return matrix.Worm(
+					m,
+					send,
+					SetParamValue[int64](params[1]),
+					SetParamValue[int](params[2]),
+					matrix.ParseChainMode(SetParamValue[int](params[0])),
+					SetParamValue[int](params[3]),
+					packets.LightHsbk{
+						Hue: colorNamesToHue[SetParamValue[string](params[4])], Saturation: math.MaxUint16, Brightness: math.MaxUint16, Kelvin: 3500,
+					},
+				)
 			}, nil
 		},
 		ParamTypes: []paramType{
 			{Name: "mode", InputType: input.InputSingleSelectInline, InputOptions: optionModes, Required: false, Description: "0-(No chain), 1-(Chain sequential), 2-(Chain synced)"},
-			{Name: "send_interval", InputType: input.InputText, Required: false, Description: "Ms pause between transition (default 100)", Validator: PositiveIntegerValidator},
+			{Name: "send_interval", InputType: input.InputText, Required: false, Description: "Ms pause between transition (default 100)", Validator: PositiveIntegerValidator, Default: int64(100)},
 			{Name: "cycles", InputType: input.InputText, Required: false, Description: "Times the animation runs for (0 = forever)", Validator: CyclesValidator},
-			{Name: "size", InputType: input.InputText, Required: false, Description: "The size of the snake (default 4)", Validator: PositiveIntegerValidator},
+			{Name: "size", InputType: input.InputText, Required: false, Description: "The size of the snake (default 4)", Validator: PositiveIntegerValidator, Default: 4},
 			{Name: "color", InputType: input.InputSingleSelect, InputOptions: optionColors, Required: true, Description: "Color of the worm", Validator: ColorListValidator},
 		},
 	},
@@ -323,45 +221,31 @@ var commands = []Command{
 		Type:        CommandTypeEffect,
 		Description: "Iterates according to the given direction drawing frames of variadic sizes",
 		MatrixEffectHandler: func(m *matrix.Matrix, send matrix.SendFunc, params ...ParamItem) (func() error, error) {
-			var (
-				mode, intervalMs, cycles, direction int64 = 0, 200, 0, 0
-				color                               *packets.LightHsbk
-			)
-
-			for _, p := range params {
-				if v := p.GetValue(); v != "" {
-					if p.Name == "color" {
-						color = &packets.LightHsbk{
-							Hue: colorNamesToHue[v], Saturation: math.MaxUint16, Brightness: math.MaxUint16, Kelvin: 3500,
-						}
-						continue
-					}
-
-					vv, err := parseInt64Input(v)
-					if err != nil {
-						return nil, err
-					}
-
-					switch p.Name {
-					case "mode":
-						mode = *vv
-					case "send_interval":
-						intervalMs = *vv
-					case "cycles":
-						cycles = *vv
-					case "direction":
-						direction = *vv
-					}
-				}
+			if err := ValidateRequired(params...); err != nil {
+				return nil, err
 			}
 
+			var color *packets.LightHsbk
+			if v := SetParamValue[*string](params[4]); v != nil {
+				color = &packets.LightHsbk{
+					Hue: colorNamesToHue[*v], Saturation: math.MaxUint16, Brightness: math.MaxUint16, Kelvin: 3500,
+				}
+			}
 			return func() error {
-				return matrix.ConcentricFrames(m, send, intervalMs, int(cycles), matrix.ParseChainMode(int(mode)), matrix.ParseAnimationDirection(int(direction)), color)
+				return matrix.ConcentricFrames(
+					m,
+					send,
+					SetParamValue[int64](params[1]),
+					SetParamValue[int](params[2]),
+					matrix.ParseChainMode(SetParamValue[int](params[0])),
+					matrix.ParseAnimationDirection(SetParamValue[int](params[3])),
+					color,
+				)
 			}, nil
 		},
 		ParamTypes: []paramType{
 			{Name: "mode", InputType: input.InputSingleSelectInline, InputOptions: optionModes, Required: false, Description: "0-(No chain), 1-(Chain sequential), 2-(Chain synced)"},
-			{Name: "send_interval", InputType: input.InputText, Required: false, Description: "Ms pause between transition (default 100)", Validator: PositiveIntegerValidator},
+			{Name: "send_interval", InputType: input.InputText, Required: false, Description: "Ms pause between transition (default 200)", Validator: PositiveIntegerValidator, Default: int64(200)},
 			{Name: "cycles", InputType: input.InputText, Required: false, Description: "Times the animation runs for (0 = forever)", Validator: CyclesValidator},
 			{Name: "direction", InputType: input.InputSingleSelect, InputOptions: directionAnimations, Required: false, Description: "The direction of the animation"},
 			{Name: "color", InputType: input.InputSingleSelect, InputOptions: optionColors, Required: false, Description: "Color of the frames", Validator: ColorListValidator},

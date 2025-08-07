@@ -47,23 +47,23 @@ type paramType struct {
 	Required     bool
 	Description  string
 	Default      any
-	Validator    func(value string) error
+	Validator    func(value string) (any, error)
 }
 
 type ParamItem struct {
 	*paramType
-	value   *string
+	value   any
 	Editing bool
 	Input   input.Input
 }
 
 func (i ParamItem) FilterValue() string { return i.Name }
 
-func (p ParamItem) ValidateValue(v string) error {
+func (p ParamItem) ValidateValue(v string) (any, error) {
 	if p.Validator != nil {
 		return p.Validator(v)
 	}
-	return nil
+	return nil, nil
 }
 
 func (i ParamItem) Title() string {
@@ -71,8 +71,8 @@ func (i ParamItem) Title() string {
 }
 
 func (p ParamItem) GetValue() string {
-	if p.paramType != nil && p.value != nil {
-		return *p.value
+	if p.Input != nil {
+		return p.Input.Value()
 	}
 	return ""
 }
@@ -85,10 +85,11 @@ func (p *ParamItem) SetValue() error {
 		return nil
 	}
 
-	if err := p.ValidateValue(v); err != nil {
+	value, err := p.ValidateValue(v)
+	if err != nil {
 		return err
 	}
-	p.value = &v
+	p.value = value
 	return nil
 }
 
@@ -116,11 +117,20 @@ func (p *ParamItem) SetEdit(v bool) {
 	p.Editing = false
 }
 
+func SetParamValue[T any](p ParamItem) T {
+	v := p.value
+	if v == nil {
+		v = p.Default
+	}
+	val, _ := v.(T)
+	return val
+}
+
 func ParamItemsFromModel(l list.Model) []ParamItem {
 	items := l.Items()
 	params := make([]ParamItem, len(items))
-	for _, i := range items {
-		params = append(params, i.(ParamItem))
+	for i, item := range items {
+		params[i] = item.(ParamItem)
 	}
 	return params
 }
@@ -190,91 +200,100 @@ func newParamsList(params []paramType) list.Model {
 	return l
 }
 
-func HueValidator(v string) error {
+func ValidateRequired(params ...ParamItem) error {
+	for _, p := range params {
+		if p.Required && p.value == nil {
+			return fmt.Errorf("%s must be set", p.Name)
+		}
+	}
+	return nil
+}
+
+func HueValidator(v string) (any, error) {
 	h, err := parseFloat64Input(v)
 	if err != nil {
-		return fmt.Errorf("invalid value, must be a number")
+		return nil, fmt.Errorf("invalid value, must be a number")
 	}
 	if *h < 0 || *h > 360 {
-		return fmt.Errorf("value out of range (0-360)")
+		return nil, fmt.Errorf("value out of range (0-360)")
 	}
-	return nil
+	return h, nil
 }
 
-func PercentageValidator(v string) error {
+func PercentageValidator(v string) (any, error) {
 	p, err := parseFloat64Input(v)
 	if err != nil {
-		return fmt.Errorf("invalid value, must be a number")
+		return nil, fmt.Errorf("invalid value, must be a number")
 	}
 	if *p < 0 || *p > 100 {
-		return fmt.Errorf("value out of range (0-100)")
+		return nil, fmt.Errorf("value out of range (0-100)")
 	}
-	return nil
+	return p, nil
 }
 
-func KelvinValidator(v string) error {
+func KelvinValidator(v string) (any, error) {
 	k, err := parseUint16Input(v)
 	if err != nil {
-		return fmt.Errorf("invalid value, must be a number")
+		return nil, fmt.Errorf("invalid value, must be a number")
 	}
 	if *k < 1500 || *k > 9000 {
-		return fmt.Errorf("value out of range (1500-9000)")
+		return nil, fmt.Errorf("value out of range (1500-9000)")
 	}
-	return nil
+	return k, nil
 }
 
-func DurationValidator(v string) error {
+func DurationValidator(v string) (any, error) {
 	d, err := parseDurationInput(v)
 	if err != nil {
-		return fmt.Errorf("invalid value, must be a number")
+		return nil, fmt.Errorf("invalid value, must be a number")
 	}
 	if d > 24*time.Hour {
-		return fmt.Errorf("duration too long")
+		return nil, fmt.Errorf("duration too long")
 	}
-	return nil
+	return d, nil
 }
 
-func EffectModeValidator(v string) error {
+func EffectModeValidator(v string) (any, error) {
 	m, err := parseInt64Input(v)
 	if err != nil {
-		return fmt.Errorf("invalid value, must be a number")
+		return nil, fmt.Errorf("invalid value, must be a number")
 	}
 	if *m < 0 || *m > 2 {
-		return fmt.Errorf("mode must be between 0-2")
+		return nil, fmt.Errorf("mode must be between 0-2")
 	}
-	return nil
+	return m, nil
 }
 
-func CyclesValidator(v string) error {
+func CyclesValidator(v string) (any, error) {
 	m, err := parseInt64Input(v)
 	if err != nil {
-		return fmt.Errorf("invalid value, must be a number")
+		return nil, fmt.Errorf("invalid value, must be a number")
 	}
 	if *m < 0 {
-		return fmt.Errorf("cycles must 0 or greater")
+		return nil, fmt.Errorf("cycles must 0 or greater")
 	}
-	return nil
+	return m, nil
 }
 
-func PositiveIntegerValidator(v string) error {
+func PositiveIntegerValidator(v string) (any, error) {
 	m, err := parseInt64Input(v)
 	if err != nil {
-		return fmt.Errorf("invalid value, must be a number")
+		return nil, fmt.Errorf("invalid value, must be a number")
 	}
 	if *m < 1 {
-		return fmt.Errorf("value must 1 or greater")
+		return nil, fmt.Errorf("value must 1 or greater")
 	}
-	return nil
+	return m, nil
 }
 
-func ColorListValidator(v string) error {
+func ColorListValidator(v string) (any, error) {
 	for s := range strings.SplitSeq(v, ",") {
 		if _, ok := colorNamesToHue[s]; !ok {
-			return fmt.Errorf("invalid color name: %s", s)
+			return nil, fmt.Errorf("invalid color name: %s", s)
 		}
 	}
 	if len(v) == 0 {
-		return fmt.Errorf("value must not be empty")
+		return nil, fmt.Errorf("value must not be empty")
 	}
-	return nil
+	return nil, nil
 }
