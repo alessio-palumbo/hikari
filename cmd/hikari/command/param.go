@@ -10,6 +10,7 @@ import (
 	"github.com/alessio-palumbo/hikari/cmd/hikari/internal/utils"
 	hlist "github.com/alessio-palumbo/hikari/cmd/hikari/list"
 	"github.com/alessio-palumbo/hikari/cmd/hikari/style"
+	"github.com/alessio-palumbo/lifxlan-go/pkg/matrix"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -20,12 +21,21 @@ const (
 
 	paramInputWidth = 20
 	paramCharLimit  = 5
+
+	chainModeSingle     = "single_device"
+	chainModeSequential = "chain_sequential"
+	chainModeSynced     = "chain_synced"
+
+	directionInwards  = "inwards"
+	directionOutwards = "outwards"
+	directionInOut    = "in-out"
+	directionOutIn    = "out-in"
 )
 
 var (
-	optionModes         = []string{"single", "multi_sequential", "multi_synced"}
-	optionColors        = []string{"red", "orange", "green", "yellow", "cyan", "blue", "magenta", "purple"}
-	directionAnimations = []string{"inwards", "outwards", "in-out", "out-in"}
+	optionModes     = []string{chainModeSingle, chainModeSequential, chainModeSynced}
+	optionColors    = []string{"red", "orange", "green", "yellow", "cyan", "blue", "magenta", "purple"}
+	optionDirection = []string{directionInwards, directionOutwards, directionInOut, directionOutIn}
 )
 
 var colorNamesToHue = map[string]uint16{
@@ -296,4 +306,28 @@ func ColorListValidator(v string) (any, error) {
 		return nil, fmt.Errorf("value must not be empty")
 	}
 	return nil, nil
+}
+
+func ChainModeValidator(v string) (any, error) {
+	switch v {
+	case chainModeSequential:
+		return int(matrix.ChainModeSequential), nil
+	case chainModeSynced:
+		return int(matrix.ChainModeSynced), nil
+	default:
+		return int(matrix.ChainModeNone), nil
+	}
+}
+
+func DirectionValidator(v string) (any, error) {
+	switch v {
+	case directionOutwards:
+		return matrix.AnimationDirectionOutwards, nil
+	case directionInOut:
+		return matrix.AnimationDirectionInOut, nil
+	case directionOutIn:
+		return matrix.AnimationDirectionOutIn, nil
+	default:
+		return matrix.AnimationDirectionInwards, nil
+	}
 }

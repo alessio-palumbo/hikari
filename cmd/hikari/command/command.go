@@ -110,7 +110,7 @@ var commands = []Command{
 			}, nil
 		},
 		ParamTypes: []paramType{
-			{Name: "mode", InputType: input.InputSingleSelectInline, InputOptions: optionModes, Required: false, Description: "0-(No chain), 1-(Chain sequential), 2-(Chain synced)"},
+			{Name: "mode", InputType: input.InputSingleSelectInline, InputOptions: optionModes, Required: false, Description: "0-(No chain), 1-(Chain sequential), 2-(Chain synced)", Validator: ChainModeValidator},
 			{Name: "send_interval", InputType: input.InputText, Required: false, Description: "Ms pause between transition", Validator: PositiveIntegerValidator, Default: int64(100)},
 			{Name: "cycles", InputType: input.InputText, Required: false, Description: "Times the animation runs for (0 = forever)", Validator: CyclesValidator},
 			{Name: "colors", InputType: input.InputMultiSelect, InputOptions: optionColors, Required: true, Description: "Colors of the waterfall", Validator: ColorListValidator},
@@ -145,7 +145,7 @@ var commands = []Command{
 			}, nil
 		},
 		ParamTypes: []paramType{
-			{Name: "mode", InputType: input.InputSingleSelectInline, InputOptions: optionModes, Required: false, Description: "0-(No chain), 1-(Chain sequential), 2-(Chain synced)"},
+			{Name: "mode", InputType: input.InputSingleSelectInline, InputOptions: optionModes, Required: false, Description: "0-(No chain), 1-(Chain sequential), 2-(Chain synced)", Validator: ChainModeValidator},
 			{Name: "send_interval", InputType: input.InputText, Required: false, Description: "Ms pause between transition", Validator: PositiveIntegerValidator, Default: int64(100)},
 			{Name: "cycles", InputType: input.InputText, Required: false, Description: "Times the animation runs for (0 = forever)", Validator: CyclesValidator},
 			{Name: "colors", InputType: input.InputMultiSelect, InputOptions: optionColors, Required: true, Description: "Colors of the rocket", Validator: ColorListValidator},
@@ -176,7 +176,7 @@ var commands = []Command{
 			}, nil
 		},
 		ParamTypes: []paramType{
-			{Name: "mode", InputType: input.InputSingleSelectInline, InputOptions: optionModes, Required: false, Description: "0-(No chain), 1-(Chain sequential), 2-(Chain synced)"},
+			{Name: "mode", InputType: input.InputSingleSelectInline, InputOptions: optionModes, Required: false, Description: "0-(No chain), 1-(Chain sequential), 2-(Chain synced)", Validator: ChainModeValidator},
 			{Name: "send_interval", InputType: input.InputText, Required: false, Description: "Ms pause between transition (default 100)", Validator: PositiveIntegerValidator, Default: int64(100)},
 			{Name: "cycles", InputType: input.InputText, Required: false, Description: "Times the animation runs for (0 = forever)", Validator: CyclesValidator},
 			{Name: "size", InputType: input.InputText, Required: false, Description: "The size of the snake (default 4)", Validator: PositiveIntegerValidator, Default: 4},
@@ -208,7 +208,7 @@ var commands = []Command{
 			}, nil
 		},
 		ParamTypes: []paramType{
-			{Name: "mode", InputType: input.InputSingleSelectInline, InputOptions: optionModes, Required: false, Description: "0-(No chain), 1-(Chain sequential), 2-(Chain synced)"},
+			{Name: "mode", InputType: input.InputSingleSelectInline, InputOptions: optionModes, Required: false, Description: "0-(No chain), 1-(Chain sequential), 2-(Chain synced)", Validator: ChainModeValidator},
 			{Name: "send_interval", InputType: input.InputText, Required: false, Description: "Ms pause between transition (default 100)", Validator: PositiveIntegerValidator, Default: int64(100)},
 			{Name: "cycles", InputType: input.InputText, Required: false, Description: "Times the animation runs for (0 = forever)", Validator: CyclesValidator},
 			{Name: "size", InputType: input.InputText, Required: false, Description: "The size of the snake (default 4)", Validator: PositiveIntegerValidator, Default: 4},
@@ -244,10 +244,10 @@ var commands = []Command{
 			}, nil
 		},
 		ParamTypes: []paramType{
-			{Name: "mode", InputType: input.InputSingleSelectInline, InputOptions: optionModes, Required: false, Description: "0-(No chain), 1-(Chain sequential), 2-(Chain synced)"},
+			{Name: "mode", InputType: input.InputSingleSelectInline, InputOptions: optionModes, Required: false, Description: "0-(No chain), 1-(Chain sequential), 2-(Chain synced)", Validator: ChainModeValidator},
 			{Name: "send_interval", InputType: input.InputText, Required: false, Description: "Ms pause between transition (default 200)", Validator: PositiveIntegerValidator, Default: int64(200)},
 			{Name: "cycles", InputType: input.InputText, Required: false, Description: "Times the animation runs for (0 = forever)", Validator: CyclesValidator},
-			{Name: "direction", InputType: input.InputSingleSelect, InputOptions: directionAnimations, Required: false, Description: "The direction of the animation"},
+			{Name: "direction", InputType: input.InputSingleSelect, InputOptions: optionDirection, Required: false, Description: "The direction of the animation", Validator: DirectionValidator},
 			{Name: "color", InputType: input.InputSingleSelect, InputOptions: optionColors, Required: false, Description: "Color of the frames", Validator: ColorListValidator},
 		},
 	},

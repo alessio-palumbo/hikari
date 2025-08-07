@@ -3,7 +3,7 @@ module github.com/alessio-palumbo/hikari
 go 1.24.3
 
 require (
-	github.com/alessio-palumbo/lifxlan-go v0.2.8
+	github.com/alessio-palumbo/lifxlan-go v0.2.9
 	github.com/alessio-palumbo/lifxprotocol-go v0.1.0
 	github.com/charmbracelet/bubbles v0.21.0
 	github.com/charmbracelet/bubbletea v1.3.5
