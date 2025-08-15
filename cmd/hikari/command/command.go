@@ -226,9 +226,9 @@ var commands = []Command{
 			}
 
 			var color *packets.LightHsbk
-			if v := SetParamValue[*string](params[4]); v != nil {
+			if v := SetParamValue[string](params[4]); v != "" {
 				color = &packets.LightHsbk{
-					Hue: colorNamesToHue[*v], Saturation: math.MaxUint16, Brightness: math.MaxUint16, Kelvin: 3500,
+					Hue: colorNamesToHue[v], Saturation: math.MaxUint16, Brightness: math.MaxUint16, Kelvin: 3500,
 				}
 			}
 			return func() error {

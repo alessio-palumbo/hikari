@@ -14,6 +14,8 @@ const (
 	selectedOption   = "✔"
 	upArrow          = "↑"
 	downArrow        = "↓"
+
+	cursorResetPosition = -1
 )
 
 type SingleSelectModel struct {
@@ -43,7 +45,9 @@ func (m SingleSelectModel) Update(msg tea.Msg) (Input, tea.Cmd) {
 				m.cursor--
 			}
 		case "down", "j":
-			if m.cursor < len(m.options)-1 {
+			if m.cursor == cursorResetPosition && m.cursor < len(m.options)-2 {
+				m.cursor += 2
+			} else if m.cursor < len(m.options)-1 {
 				m.cursor++
 			}
 		}
@@ -70,10 +74,16 @@ func (m SingleSelectModel) View() string {
 }
 
 func (m SingleSelectModel) Value() string {
+	if m.cursor == cursorResetPosition {
+		return ""
+	}
 	return m.options[m.cursor]
 }
 
 func (m SingleSelectModel) inlineView() string {
+	if m.cursor == cursorResetPosition {
+		return ""
+	}
 	var b strings.Builder
 	for i, opt := range m.options {
 		if m.cursor == i {
@@ -86,4 +96,9 @@ func (m SingleSelectModel) inlineView() string {
 		}
 	}
 	return b.String()
+}
+
+func (m SingleSelectModel) Reset() Input {
+	m.cursor = cursorResetPosition
+	return m
 }

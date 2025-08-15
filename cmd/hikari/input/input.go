@@ -15,4 +15,5 @@ type Input interface {
 	Update(tea.Msg) (Input, tea.Cmd)
 	View() string
 	Value() string
+	Reset() Input
 }

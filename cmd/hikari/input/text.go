@@ -32,3 +32,8 @@ func (m TextModel) View() string {
 func (m TextModel) Value() string {
 	return m.Model.Value()
 }
+
+func (m TextModel) Reset() Input {
+	m.Model.Reset()
+	return m
+}

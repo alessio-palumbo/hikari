@@ -79,3 +79,11 @@ func (m MultiSelectModel) Value() string {
 	}
 	return strings.Join(labels, ",")
 }
+
+func (m MultiSelectModel) Reset() Input {
+	for i := range m.items {
+		m.items[i].Checked = false
+	}
+	m.cursor = 0
+	return m
+}

@@ -305,7 +305,7 @@ func ColorListValidator(v string) (any, error) {
 	if len(v) == 0 {
 		return nil, fmt.Errorf("value must not be empty")
 	}
-	return nil, nil
+	return v, nil
 }
 
 func ChainModeValidator(v string) (any, error) {

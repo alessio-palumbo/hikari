@@ -241,10 +241,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.errMessage = err.Error()
 					return m, nil
 				}
-				fallthrough
-			case mappingBack, mappingBackAlt:
-				m.errMessage = ""
 				paramItem.SetEdit(false)
+				m.state = stateParamList
+			case mappingBack, mappingBackAlt:
+				paramItem.Input = paramItem.Input.Reset()
+				_ = paramItem.SetValue()
+				paramItem.SetEdit(false)
+				m.errMessage = ""
 				m.state = stateParamList
 			default:
 				paramItem.UpdateValue(msg)
