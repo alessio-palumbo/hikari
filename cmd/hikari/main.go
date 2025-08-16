@@ -242,6 +242,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, nil
 				}
 				paramItem.SetEdit(false)
+				m.errMessage = ""
 				m.state = stateParamList
 			case mappingBack, mappingBackAlt:
 				paramItem.Input = paramItem.Input.Reset()

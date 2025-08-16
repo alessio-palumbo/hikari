@@ -3,6 +3,7 @@ package command
 import (
 	"fmt"
 	"io"
+	"reflect"
 	"strings"
 	"time"
 
@@ -132,8 +133,24 @@ func SetParamValue[T any](p ParamItem) T {
 	if v == nil {
 		v = p.Default
 	}
-	val, _ := v.(T)
-	return val
+	// Attempt direct cast first
+	if val, ok := v.(T); ok {
+		return val
+	}
+
+	// Reflection fallback: check if it's a pointer to T
+	rv := reflect.ValueOf(v)
+	if rv.Kind() == reflect.Ptr && !rv.IsNil() {
+		// Check if *v is T
+		elem := rv.Elem().Interface()
+		if val, ok := elem.(T); ok {
+			return val
+		}
+	}
+
+	// Return zero value of T if no match
+	var zero T
+	return zero
 }
 
 func ParamItemsFromModel(l list.Model) []ParamItem {
@@ -322,12 +339,12 @@ func ChainModeValidator(v string) (any, error) {
 func DirectionValidator(v string) (any, error) {
 	switch v {
 	case directionOutwards:
-		return matrix.AnimationDirectionOutwards, nil
+		return int(matrix.AnimationDirectionOutwards), nil
 	case directionInOut:
-		return matrix.AnimationDirectionInOut, nil
+		return int(matrix.AnimationDirectionInOut), nil
 	case directionOutIn:
-		return matrix.AnimationDirectionOutIn, nil
+		return int(matrix.AnimationDirectionOutIn), nil
 	default:
-		return matrix.AnimationDirectionInwards, nil
+		return int(matrix.AnimationDirectionInwards), nil
 	}
 }
