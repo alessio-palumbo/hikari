@@ -11,6 +11,7 @@ import (
 	"github.com/alessio-palumbo/hikari/cmd/hikari/internal/utils"
 	hlist "github.com/alessio-palumbo/hikari/cmd/hikari/list"
 	"github.com/alessio-palumbo/hikari/cmd/hikari/style"
+	"github.com/alessio-palumbo/lifxlan-go/pkg/device"
 	"github.com/alessio-palumbo/lifxlan-go/pkg/matrix"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -110,7 +111,7 @@ func (p *ParamItem) UpdateValue(msg tea.KeyMsg) tea.Cmd {
 	return cmd
 }
 
-func (p *ParamItem) SetEdit(v bool) {
+func (p *ParamItem) SetEdit(v bool, mProps ...device.MatrixProperties) {
 	if v {
 		p.Editing = true
 		switch p.InputType {
@@ -122,6 +123,8 @@ func (p *ParamItem) SetEdit(v bool) {
 			p.Input = input.NewInputSingleSelectInline(p.InputOptions, paramInputWidth)
 		case input.InputMultiSelect:
 			p.Input = input.NewMultiSelect(p.InputOptions, paramInputWidth)
+		case input.InputMatrixSelect:
+			p.Input = input.NewMatrixSelect(mProps[0].Width, mProps[0].Height)
 		}
 		return
 	}
@@ -183,11 +186,15 @@ func newParamsList(params []paramType) list.Model {
 				str += item.Input.View()
 			case input.InputSingleSelectInline:
 				str += item.Input.View()
-			case input.InputSingleSelect, input.InputMultiSelect:
+			case input.InputSingleSelect, input.InputMultiSelect, input.InputMatrixSelect:
 				str = lipgloss.NewStyle().Render(lipgloss.JoinHorizontal(lipgloss.Top, str, item.Input.View()))
 			}
 		} else if v := item.GetValue(); v != "" {
-			valueStr = "[" + v + "]"
+			if item.InputType == input.InputMatrixSelect {
+				valueStr = "[set]"
+			} else {
+				valueStr = "[" + v + "]"
+			}
 			str += valueStr
 		} else {
 			valueStr = "[not set]"
@@ -347,4 +354,23 @@ func DirectionValidator(v string) (any, error) {
 	default:
 		return int(matrix.AnimationDirectionInwards), nil
 	}
+}
+
+func MatrixValidator(v string) (any, error) {
+	lines := strings.Split(strings.TrimSpace(v), "\n")
+	height := len(lines)
+	if height == 0 {
+		return nil, nil
+	}
+
+	var selectedPixels []matrix.Pixel
+	for y, line := range lines {
+		tokens := strings.Fields(line)
+		for x, tok := range tokens {
+			if tok == input.MatrixCellSelected {
+				selectedPixels = append(selectedPixels, matrix.Pixel{X: x, Y: y})
+			}
+		}
+	}
+	return selectedPixels, nil
 }

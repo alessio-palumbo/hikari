@@ -9,6 +9,7 @@ const (
 	InputSingleSelect
 	InputSingleSelectInline
 	InputMultiSelect
+	InputMatrixSelect
 )
 
 type Input interface {

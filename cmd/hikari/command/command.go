@@ -82,6 +82,40 @@ var commands = []Command{
 		},
 	},
 	{
+		ID:          "set_pixels",
+		Name:        "Set Pixels",
+		Type:        CommandTypeSetter,
+		Description: "Set pixels of a matrix",
+		Handler: func(params ...ParamItem) (*protocol.Message, error) {
+			if err := ValidateRequired(params...); err != nil {
+				return nil, err
+			}
+
+			var color *packets.LightHsbk
+			if v := SetParamValue[string](params[0]); v != "" {
+				b := uint16(math.Round(*SetParamValue[*float64](params[1]) * math.MaxUint16 / 100))
+				color = &packets.LightHsbk{
+					Hue: colorNamesToHue[v], Saturation: math.MaxUint16, Brightness: b, Kelvin: 3500,
+				}
+			}
+
+			var colors [64]packets.LightHsbk
+			if v := SetParamValue[[]matrix.Pixel](params[2]); v != nil {
+				m := matrix.New(8, 8, 1)
+				for _, p := range v {
+					m.SetPixel(p.X, p.Y, *color)
+				}
+				colors = m.FlattenColors()
+			}
+			return messages.SetMatrixColors(0, 1, 8, colors, time.Second), nil
+		},
+		ParamTypes: []paramType{
+			{Name: "color", InputType: input.InputSingleSelectInline, InputOptions: optionColors, Required: true, Description: "Colors of the rocket", Validator: ColorListValidator},
+			{Name: "brightness", InputType: input.InputText, Required: true, Description: "Brightness (0-100)", Validator: PercentageValidator, Default: float64(50)},
+			{Name: "pixels", InputType: input.InputMatrixSelect, Required: false, Description: "Toggle pixels", Validator: MatrixValidator},
+		},
+	},
+	{
 		ID:          "waterfall_effect",
 		Name:        "Waterfall Effect",
 		Type:        CommandTypeEffect,

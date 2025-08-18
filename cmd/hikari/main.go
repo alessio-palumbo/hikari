@@ -10,6 +10,7 @@ import (
 
 	"github.com/alessio-palumbo/hikari/cmd/hikari/command"
 	"github.com/alessio-palumbo/hikari/cmd/hikari/device"
+	"github.com/alessio-palumbo/hikari/cmd/hikari/input"
 	"github.com/alessio-palumbo/hikari/cmd/hikari/internal/version"
 	"github.com/alessio-palumbo/hikari/cmd/hikari/style"
 	ctrl "github.com/alessio-palumbo/lifxlan-go/pkg/controller"
@@ -158,7 +159,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.selectedCommand = commandItem
 
 					switch m.selectedCommand.ID {
-					case "set_color", "set_brightness":
+					case "set_color", "set_brightness", "set_pixels":
 						m.paramList = m.selectedCommand.NewParams()
 						m.state = stateParamList
 						return m, nil
@@ -196,7 +197,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			switch msg.String() {
 			case mappingSelect, mappingSelectAlt:
-				paramItem.SetEdit(true)
+				paramItem.SetEdit(true, m.selectedDevice.MatrixProperties)
 				m.paramList.SetItem(paramIndex, paramItem)
 				m.state = stateParamEdit
 			case mappingSend:
@@ -245,6 +246,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.errMessage = ""
 				m.state = stateParamList
 			case mappingBack, mappingBackAlt:
+				// Special handling for matrix input which requires directional keys.
+				if paramItem.InputType == input.InputMatrixSelect {
+					paramItem.UpdateValue(msg)
+					break
+				}
+
 				paramItem.Input = paramItem.Input.Reset()
 				_ = paramItem.SetValue()
 				paramItem.SetEdit(false)
