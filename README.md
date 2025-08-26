@@ -18,7 +18,7 @@
 
 ## 📦 Installation
 
-Download a binary for your OS from the [Releases page](https://github.com/yourusername/hikari/releases), or build from source.
+Download a binary for your OS from the [Releases page](https://github.com/alessio-palumbo/hikari/releases), or build from source.
 
 ### Prebuilt binaries:
 
@@ -54,15 +54,17 @@ hikari.exe
 
 Inside the TUI:
 
+- Navigate list with up/down or k/j
+
 - Press i to inspect a device
 - Press enter/e to select a device/command/parameter
 
-* Press enter/e to send a simple command (e.g, on/off)
+* Press s to send a command (e.g, on/off)
 
-- Press a after editing parameters to apply and send the command
-- Press esc/b to go back
+- Press enter/e to edit a parameter
+- Press left arrow/h to go back
 
-* Press / to filter a device by name, group, location
+* Press / to filter a device by name, group, location and confirm with enter/e
 * Press q to quit
 
 ---
@@ -70,7 +72,7 @@ Inside the TUI:
 🔧 Build From Source
 
 ```bash
-git clone https://github.com/yourusername/hikari.git
+git clone https://github.com/alessio-palumbo/hikari.git
 cd hikari
 go build ./cmd/main.go
 ```
